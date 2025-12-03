@@ -24,6 +24,7 @@ from pyspark.sql.functions import (
     ,udf
     ,sha2
     ,concat_ws
+    ,from_xml
 )
 from typing import Any
 import re
@@ -118,7 +119,7 @@ class Bronze:
           ,'delta.enableRowTracking' : 'true'
           ,'delta.autoOptimize.optimizeWrite' : 'true' 
           ,'delta.autoOptimize.autoCompact' : 'true'
-          ,'delta.enableVariantShredding' = 'true'
+          ,'delta.enableVariantShredding' : 'true'
         }
       )
       def variant_transform_function():
