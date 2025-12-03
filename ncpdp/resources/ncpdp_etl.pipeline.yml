@@ -13,6 +13,10 @@ resources:
       schema: ${resources.schemas.ncpdp_schema.name}
       serverless: true
       root_path: "../src/ncpdp_etl"
+      event_log:
+        name: event_log_ncpdp_etl
+        schema: ${var.event_log_schema}
+        catalog: ${var.event_log_catalog}
 
       libraries:
         - glob:

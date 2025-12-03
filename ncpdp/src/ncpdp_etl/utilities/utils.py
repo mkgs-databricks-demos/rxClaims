@@ -78,7 +78,7 @@ class Bronze:
       else:
         volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.volume_sub_path}/{self.resource_type}"
 
-      @dlt.table(
+      @dp.table(
         name=f"{self.catalog}.{self.schema}.ncpdp_bronze",
         comment=f"Streaming bronze ingestion of NCPDP XML files as full text strings.",
         # spark_conf={"<key>" : "<value>", "<key>" : "<value>"},
@@ -97,7 +97,7 @@ class Bronze:
         # row_filter = "row-filter-clause",
         temporary=False
       )
-      # @dlt.expect(...)
+      # @dp.expect(...)
       def stream_ingest_function():
           return (self.spark.readStream
             .format("cloudFiles")

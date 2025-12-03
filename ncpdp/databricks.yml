@@ -17,6 +17,10 @@ variables:
   volume:
     description: The name of the volume to use for autoloading files
     default: landing
+  event_log_catalog:
+    description: The catalog to publish the ETL Pipeline's event log.
+  event_log_schema:
+    description: The schema to publish the ETL Pipeline's event log. 
   serverless_environment_version: 
     default: "4"
     description: The Serverless Environment version to use with serverless workflows.  
@@ -37,6 +41,8 @@ targets:
     variables:
       catalog: dev
       schema: ncpdp
+      event_log_catalog: ${var.catalog}
+      event_log_schema: ${resources.schemas.ncpdp_schema.name}
 
 
   prod:
@@ -48,6 +54,8 @@ targets:
     variables:
       catalog: prod
       schema: ncpdp
+      event_log_catalog: ${var.catalog}
+      event_log_schema: ${resources.schemas.ncpdp_schema.name}
     permissions:
       - user_name: ${var.run_as_user}
         level: CAN_MANAGE
