@@ -9,6 +9,8 @@ resources:
         schema_use: ${resources.schemas.ncpdp_schema.name}
         volume_use: ${resources.volumes.ncpdp_landing_volume.name}
         volume_sub_path_use: ""
+        # separate file_types with commas
+        file_types: ClaimBilling
       catalog: ${var.catalog}
       schema: ${resources.schemas.ncpdp_schema.name}
       serverless: true
