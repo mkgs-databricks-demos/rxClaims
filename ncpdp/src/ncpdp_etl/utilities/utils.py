@@ -36,7 +36,7 @@ default_table_properties = {
   ,'delta.autoOptimize.autoCompact' : 'true'
   ,'delta.feature.variantType-preview' : 'supported'
   ,'delta.enableVariantShredding' : 'true'
-  ,'delta.feature.catalogOwned-preview' : 'supported'
+  # ,'delta.feature.catalogOwned-preview' : 'supported'
 }
 
 class Bronze:
