@@ -26,6 +26,12 @@ resources:
           default: ${var.volume_sub_path}
         - name: ncpdp_file_types
           default: ${var.ncpdp_file_types}
+        - name: bundle_target
+          default: ${bundle.target}
+        - name: run_set_up
+          default: false
+        - name: pipeline_full_refresh
+          default: false 
 
       tasks:
         - task_key: refresh_pipeline
