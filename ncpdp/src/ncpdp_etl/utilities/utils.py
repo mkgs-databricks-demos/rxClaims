@@ -111,7 +111,7 @@ class Bronze:
       @dp.table(
         name = f"{self.catalog}.{self.schema}.ncpdp_bronze_variant"
         ,comment = f"Streaming bronze transformation from NCPDP XML files as full text strings to variant."
-        table_properties={
+        ,table_properties={
           'quality' : 'bronze'
           ,'delta.enableChangeDataFeed' : 'true'
           ,'delta.enableDeletionVectors' : 'true'
