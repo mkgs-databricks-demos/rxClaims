@@ -104,15 +104,14 @@ class Bronze:
             .option("cloudFiles.format", "text")
             .load(volume_path)
             .selectExpr("_metadata as file_metadata", "*")
-            .filter(~col("value").startswith("Id,") & ~col("value").startswith("START,"))
           )
 
     def to_dict(self):
-        return {"spark": self.spark, "catalog": self.catalog, "schema": self.schema, "volume_sub_path": self.volume_sub_path, "resource_type": self.resource_type}
+        return {"spark": self.spark, "catalog": self.catalog, "schema": self.schema, "volume_sub_path": self.volume_sub_path}
 
     @classmethod
     def from_dict(cls, data):
-        return cls(data['spark'], data['catalog'], data['schema'], data['volume_sub_path'], data['resource_type'])
+        return cls(data['spark'], data['catalog'], data['schema'], data['volume_sub_path'])
 
     
 
