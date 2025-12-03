@@ -19,7 +19,7 @@ variables:
     default: landing
   volume_sub_path: 
     description: Sub directory in the volume where the NCPDP files will be autoloaded from, if applicable, with a slash to start and no trailing slash. E.g. /dir1/dir2
-    default: Null
+    default: ""
   ncpdp_file_types: 
     description: The file types that will be loaded into tables as a string of comma separated values.  Each file type should be placed in its respective directory either at the volume level, or in the volume sub path level.  The directories and the values in the string much match.  E.g. ClaimBilling, ClaimRebill, ClaimReversal
     default: ClaimBilling
@@ -48,7 +48,7 @@ targets:
       catalog: dev
       schema: ncpdp_rx
       volume: landing
-      volume_sub_path: Null
+      volume_sub_path: ""
       ncpdp_file_types: ClaimBilling
       serverless_environment_version: "4"
       event_log_catalog: ${var.catalog}
@@ -65,7 +65,7 @@ targets:
       catalog: prod
       schema: ncpdp_rx
       volume: landing
-      volume_sub_path: Null
+      volume_sub_path: ""
       ncpdp_file_types: ClaimBilling
       serverless_environment_version: "4"
       event_log_catalog: ${var.catalog}
