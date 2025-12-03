@@ -27,38 +27,26 @@ from pyspark.sql.functions import (
     ,from_xml
 )
 from typing import Any
-import re
 
-@udf(returnType=BooleanType())
-def is_valid_email(email):
-    """
-    This function checks if the given email address has a valid format using regex.
-    Returns True if valid, False otherwise.
-
-    Example usage:
-
-    from pyspark import pipelines as dp
-    from pyspark.sql.functions import col
-    from utilities import new_utils
-
-    @dp.table
-    def my_table():
-        return (
-            spark.read.table("samples.wanderbricks.users")
-            .withColumn("valid_email", new_utils.is_valid_email(col("email")))
-    """
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    if email is None:
-        return False
-    return re.match(pattern, email) is not None
+default_table_properties = {
+  'delta.enableChangeDataFeed' : 'true'
+  ,'delta.enableDeletionVectors' : 'true'
+  ,'delta.enableRowTracking' : 'true'
+  ,'delta.autoOptimize.optimizeWrite' : 'true' 
+  ,'delta.autoOptimize.autoCompact' : 'true'
+  ,'delta.feature.variantType-preview' : 'supported'
+  ,'delta.enableVariantShredding' : 'true'
+  ,'delta.feature.catalogOwned-preview' : 'supported'
+}
 
 class Bronze:
-    def __init__(self, spark: SparkSession, catalog: str, schema: str, volume: str, volume_sub_path: str = None):
+    def __init__(self, spark: SparkSession, catalog: str, schema: str, volume: str, volume_sub_path: str = None, table_properties: dict = default_table_properties):
         self.spark = spark
         self.catalog = catalog 
         self.schema = schema
         self.volume = volume
         self.volume_sub_path = volume_sub_path
+        self.table_properties = table_properties.append('quality', 'bronze')
 
     def __repr__(self):
         return f"Bronze(catalog='{self.catalog}', schema='{self.schema}', volume='{self.volume}',volume_sub_path='{self.volume_sub_path}')"
@@ -82,17 +70,10 @@ class Bronze:
         volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.volume_sub_path}"
 
       @dp.table(
-        name=f"{self.catalog}.{self.schema}.ncpdp_bronze",
+        name=f"{self.catalog}.{self.schema}.bronze",
         comment=f"Streaming bronze ingestion of NCPDP XML files as full text strings.",
         # spark_conf={"<key>" : "<value>", "<key>" : "<value>"},
-        table_properties={
-          'quality' : 'bronze'
-          ,'delta.enableChangeDataFeed' : 'true'
-          ,'delta.enableDeletionVectors' : 'true'
-          ,'delta.enableRowTracking' : 'true'
-          ,'delta.autoOptimize.optimizeWrite' : 'true' 
-          ,'delta.autoOptimize.autoCompact' : 'true'
-        },
+        table_properties=self.table_properties,
         # path="<storage-location-path>",
         # partition_cols=["<partition-column>", "<partition-column>"],
         cluster_by = ["file_metadata.file_path"],
@@ -111,40 +92,22 @@ class Bronze:
 
     def variant_transform(self):
       @dp.table(
-        name = f"{self.catalog}.{self.schema}.ncpdp_bronze_variant"
+        name = f"{self.catalog}.{self.schema}.bronze_variant"
         ,comment = f"Streaming bronze transformation from NCPDP XML files as full text strings to variant."
-        ,table_properties={
-          'quality' : 'bronze'
-          ,'delta.enableChangeDataFeed' : 'true'
-          ,'delta.enableDeletionVectors' : 'true'
-          ,'delta.enableRowTracking' : 'true'
-          ,'delta.autoOptimize.optimizeWrite' : 'true' 
-          ,'delta.autoOptimize.autoCompact' : 'true'
-          ,'delta.feature.variantType-preview' : 'supported'
-          ,'delta.enableVariantShredding' : 'true'
-        }
+        ,table_properties=self.table_properties
       )
       def variant_transform_function():
         return (self.spark.readStream
-          .table(f"{self.catalog}.{self.schema}.ncpdp_bronze")
+          .table(f"{self.catalog}.{self.schema}.bronze")
           .withColumn("messages", from_xml(col("value"), "VARIANT"))
           .drop(col("value"))
         )
 
     def extract_requests(self):
       @dp.table(
-        name = f"{self.catalog}.{self.schema}.ncpdp_bronze_requests"
+        name = f"{self.catalog}.{self.schema}.bronze_requests"
         ,comment = f"Initial parsing of the NCPDP Request Messages"
-        ,table_properties={
-          'quality' : 'bronze'
-          ,'delta.enableChangeDataFeed' : 'true'
-          ,'delta.enableDeletionVectors' : 'true'
-          ,'delta.enableRowTracking' : 'true'
-          ,'delta.autoOptimize.optimizeWrite' : 'true' 
-          ,'delta.autoOptimize.autoCompact' : 'true'
-          ,'delta.feature.variantType-preview' : 'supported'
-          ,'delta.enableVariantShredding' : 'true'
-        }
+        ,table_properties=self.table_properties
       )
       def extract_requests_function():
         return (
@@ -154,25 +117,16 @@ class Bronze:
               ,messages
               ,requests.*
             FROM 
-              STREAM ({self.catalog}.{self.schema}.ncpdp_bronze_variant)
+              STREAM ({self.catalog}.{self.schema}.bronze_variant)
               ,LATERAL variant_explode_outer(messages:NcpdpRequest) as requests
           """)
         )
 
     def extract_responses(self):
       @dp.table(
-        name = f"{self.catalog}.{self.schema}.ncpdp_bronze_responses"
+        name = f"{self.catalog}.{self.schema}.bronze_responses"
         ,comment = f"Initial parsing of the NCPDP Response Messages"
-        ,table_properties={
-          'quality' : 'bronze'
-          ,'delta.enableChangeDataFeed' : 'true'
-          ,'delta.enableDeletionVectors' : 'true'
-          ,'delta.enableRowTracking' : 'true'
-          ,'delta.autoOptimize.optimizeWrite' : 'true' 
-          ,'delta.autoOptimize.autoCompact' : 'true'
-          ,'delta.feature.variantType-preview' : 'supported'
-          ,'delta.enableVariantShredding' : 'true'
-        }
+        ,table_properties=self.table_properties
       )
       def extract_responses_function():
         return (
@@ -182,25 +136,16 @@ class Bronze:
               ,messages
               ,responses.*
             FROM 
-              STREAM ({self.catalog}.{self.schema}.ncpdp_bronze_variant)
+              STREAM ({self.catalog}.{self.schema}.bronze_variant)
               ,LATERAL variant_explode_outer(messages:NcpdpResponse) as responses
           """)
         )
 
     def extract_supplemental(self):
       @dp.table(
-        name = f"{self.catalog}.{self.schema}.ncpdp_bronze_supplemental"
+        name = f"{self.catalog}.{self.schema}.bronze_supplemental"
         ,comment = f"Initial parsing of the NCPDP Response Messages"
-        ,table_properties={
-          'quality' : 'bronze'
-          ,'delta.enableChangeDataFeed' : 'true'
-          ,'delta.enableDeletionVectors' : 'true'
-          ,'delta.enableRowTracking' : 'true'
-          ,'delta.autoOptimize.optimizeWrite' : 'true' 
-          ,'delta.autoOptimize.autoCompact' : 'true'
-          ,'delta.feature.variantType-preview' : 'supported'
-          ,'delta.enableVariantShredding' : 'true'
-        }
+        ,table_properties=self.table_properties
       )
       def extract_supplemental_function():
         return (
@@ -210,7 +155,7 @@ class Bronze:
               ,messages
               ,supplemental.*
             FROM 
-              STREAM ({self.catalog}.{self.schema}.ncpdp_bronze_variant)
+              STREAM ({self.catalog}.{self.schema}.bronze_variant)
               ,LATERAL variant_explode_outer(messages:Supplemental) as supplemental
           """)
         )
