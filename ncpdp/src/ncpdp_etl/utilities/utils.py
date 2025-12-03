@@ -65,6 +65,7 @@ class Bronze:
       
     def stream_ingest(self):
       schema_definition = f"""
+        index_file_source_id STRING NOT NULL PRIMARY KEY COMMENT 'Unique identifier for the ingested file.',
         file_metadata STRUCT < file_path: STRING, 
         file_name: STRING,
         file_size: BIGINT,
@@ -105,7 +106,7 @@ class Bronze:
             .format("cloudFiles")
             .option("cloudFiles.format", "text")
             .load(volume_path)
-            .selectExpr("_metadata as file_metadata", "*")
+            .selectExpr("sha2(concat(_metadata.*), 256) as index_file_source_id", "_metadata as file_metadata", "*")
           )
 
     def variant_transform(self):
@@ -126,8 +127,35 @@ class Bronze:
       def variant_transform_function():
         return (self.spark.readStream
           .table(f"{self.catalog}.{self.schema}.ncpdp_bronze")
-          .withColumn("claims", from_xml(col("value"), "VARIANT"))
+          .withColumn("messages", from_xml(col("value"), "VARIANT"))
+          .drop(col("value"))
         )
+
+    def extract_requests(self):
+      @dp.table(
+        name = f"{self.catalog}.{self.schema}.ncpdp_bronze_requests"
+        ,comment = f"Initial parsing of the NCPDP Request Messages"
+        ,table_properties={
+          'quality' : 'bronze'
+          ,'delta.enableChangeDataFeed' : 'true'
+          ,'delta.enableDeletionVectors' : 'true'
+          ,'delta.enableRowTracking' : 'true'
+          ,'delta.autoOptimize.optimizeWrite' : 'true' 
+          ,'delta.autoOptimize.autoCompact' : 'true'
+          ,'delta.feature.variantType-preview' : 'supported'
+          ,'delta.enableVariantShredding' : 'true'
+        }
+      )
+      def extract_requests_function():
+        return (
+          self.spark.sql(f"""
+            SELECT
+              *
+            FROM 
+              STREAM ({self.catalog}.{self.schema}.ncpdp_bronze_variant)      
+          """)
+        )
+
     
     ###################################
     # other class methods
