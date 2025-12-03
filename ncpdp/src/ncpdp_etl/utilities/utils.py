@@ -75,9 +75,9 @@ class Bronze:
       """
 
       if self.volume_sub_path == None:
-        volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.resource_type}"
+        volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}"
       else:
-        volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.volume_sub_path}/{self.resource_type}"
+        volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.volume_sub_path}"
 
       @dp.table(
         name=f"{self.catalog}.{self.schema}.ncpdp_bronze",
