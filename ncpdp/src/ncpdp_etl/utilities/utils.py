@@ -40,11 +40,12 @@ default_table_properties = {
 }
 
 class Bronze:
-    def __init__(self, spark: SparkSession, catalog: str, schema: str, volume: str, volume_sub_path: str = None, table_properties: dict = default_table_properties):
+    def __init__(self, spark: SparkSession, catalog: str, schema: str, volume: str, file_type: str, volume_sub_path: str = None, table_properties: dict = default_table_properties):
         self.spark = spark
         self.catalog = catalog 
         self.schema = schema
         self.volume = volume
+        self.file_type = file_type
         self.volume_sub_path = volume_sub_path
         self.table_properties = table_properties.copy()
         self.table_properties['quality'] = 'bronze'
@@ -66,13 +67,13 @@ class Bronze:
       """
 
       if self.volume_sub_path == None:
-        volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}"
+        volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.file_type}"
       else:
-        volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.volume_sub_path}"
+        volume_path = f"/Volumes/{self.catalog}/{self.schema}/{self.volume}/{self.volume_sub_path}/{self.file_type}"
 
       @dp.table(
-        name=f"{self.catalog}.{self.schema}.bronze",
-        comment=f"Streaming bronze ingestion of NCPDP XML files as full text strings.",
+        name=f"{self.catalog}.{self.schema}.{self.file_type}_bronze",
+        comment=f"Streaming bronze ingestion of NCPDP {self.file_type} XML files as full text strings.",
         # spark_conf={"<key>" : "<value>", "<key>" : "<value>"},
         table_properties=self.table_properties,
         # path="<storage-location-path>",
@@ -93,21 +94,21 @@ class Bronze:
 
     def variant_transform(self):
       @dp.table(
-        name = f"{self.catalog}.{self.schema}.bronze_variant"
-        ,comment = f"Streaming bronze transformation from NCPDP XML files as full text strings to variant."
+        name = f"{self.catalog}.{self.schema}.{self.file_type}_bronze_variant"
+        ,comment = f"Streaming bronze transformation from NCPDP {self.file_type} XML files as full text strings to variant."
         ,table_properties=self.table_properties
       )
       def variant_transform_function():
         return (self.spark.readStream
-          .table(f"{self.catalog}.{self.schema}.bronze")
+          .table(f"{self.catalog}.{self.schema}.{self.file_type}_bronze")
           .withColumn("messages", from_xml(col("value"), "VARIANT"))
           .drop(col("value"))
         )
 
     def extract_requests(self):
       @dp.table(
-        name = f"{self.catalog}.{self.schema}.bronze_requests"
-        ,comment = f"Initial parsing of the NCPDP Request Messages"
+        name = f"{self.catalog}.{self.schema}.{self.file_type}_bronze_requests"
+        ,comment = f"Initial parsing of the NCPDP {self.file_type} Request Messages"
         ,table_properties=self.table_properties
       )
       def extract_requests_function():
@@ -116,17 +117,20 @@ class Bronze:
             SELECT
               index_file_source_id
               ,messages
-              ,requests.*
+              ,requests.pos as request_pos
+              ,requests.key as request_segment
+              ,request_value.*
             FROM 
-              STREAM ({self.catalog}.{self.schema}.bronze_variant)
+              STREAM ({self.catalog}.{self.schema}.{self.file_type}_bronze_variant)
               ,LATERAL variant_explode_outer(messages:NcpdpRequest) as requests
+              ,LATERAL variant_explode_outer(requests.value) as request_value
           """)
         )
 
     def extract_responses(self):
       @dp.table(
-        name = f"{self.catalog}.{self.schema}.bronze_responses"
-        ,comment = f"Initial parsing of the NCPDP Response Messages"
+        name = f"{self.catalog}.{self.schema}.{self.file_type}_bronze_responses"
+        ,comment = f"Initial parsing of the NCPDP {self.file_type} Response Messages"
         ,table_properties=self.table_properties
       )
       def extract_responses_function():
@@ -135,17 +139,20 @@ class Bronze:
             SELECT
               index_file_source_id
               ,messages
-              ,responses.*
+              ,responses.pos as response_pos
+              ,responses.key as response_segment
+              ,response_value.*
             FROM 
-              STREAM ({self.catalog}.{self.schema}.bronze_variant)
+              STREAM ({self.catalog}.{self.schema}.{self.file_type}_bronze_variant)
               ,LATERAL variant_explode_outer(messages:NcpdpResponse) as responses
+              ,LATERAL variant_explode_outer(responses.value) as response_value
           """)
         )
 
     def extract_supplemental(self):
       @dp.table(
-        name = f"{self.catalog}.{self.schema}.bronze_supplemental"
-        ,comment = f"Initial parsing of the NCPDP Response Messages"
+        name = f"{self.catalog}.{self.schema}.{self.file_type}_bronze_supplemental"
+        ,comment = f"Initial parsing of the NCPDP {self.file_type} Supplemental Messages"
         ,table_properties=self.table_properties
       )
       def extract_supplemental_function():
@@ -156,7 +163,7 @@ class Bronze:
               ,messages
               ,supplemental.*
             FROM 
-              STREAM ({self.catalog}.{self.schema}.bronze_variant)
+              STREAM ({self.catalog}.{self.schema}.{self.file_type}_bronze_variant)
               ,LATERAL variant_explode_outer(messages:Supplemental) as supplemental
           """)
         )

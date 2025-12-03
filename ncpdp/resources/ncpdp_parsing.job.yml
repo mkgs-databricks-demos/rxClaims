@@ -22,6 +22,10 @@ resources:
           default: ${resources.schemas.ncpdp_schema.name}
         - name: volume_use
           default: ${resources.volumes.ncpdp_landing_volume.name}
+        - name: volume_sub_path
+          default: ${var.volume_sub_path}
+        - name: ncpdp_file_types
+          default: ${var.ncpdp_file_types}
 
       tasks:
         - task_key: refresh_pipeline

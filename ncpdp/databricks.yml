@@ -17,6 +17,12 @@ variables:
   volume:
     description: The name of the volume to use for autoloading files
     default: landing
+  volume_sub_path: 
+    description: Sub directory in the volume where the NCPDP files will be autoloaded from, if applicable, with a slash to start and no trailing slash. E.g. /dir1/dir2
+    default: Null
+  ncpdp_file_types: 
+    description: The file types that will be loaded into tables as a string of comma separated values.  Each file type should be placed in its respective directory either at the volume level, or in the volume sub path level.  The directories and the values in the string much match.  E.g. ClaimBilling, ClaimRebill, ClaimReversal
+    default: ClaimBilling
   event_log_catalog:
     description: The catalog to publish the ETL Pipeline's event log.
   event_log_schema:
@@ -41,6 +47,10 @@ targets:
     variables:
       catalog: dev
       schema: ncpdp_rx
+      volume: landing
+      volume_sub_path: Null
+      ncpdp_file_types: ClaimBilling
+      serverless_environment_version: "4"
       event_log_catalog: ${var.catalog}
       event_log_schema: ${resources.schemas.ncpdp_schema.name}
 
@@ -54,8 +64,13 @@ targets:
     variables:
       catalog: prod
       schema: ncpdp_rx
+      volume: landing
+      volume_sub_path: Null
+      ncpdp_file_types: ClaimBilling
+      serverless_environment_version: "4"
       event_log_catalog: ${var.catalog}
       event_log_schema: ${resources.schemas.ncpdp_schema.name}
+      run_as_user: matthew.giglia@databricks.com
     permissions:
       - user_name: ${var.run_as_user}
         level: CAN_MANAGE
