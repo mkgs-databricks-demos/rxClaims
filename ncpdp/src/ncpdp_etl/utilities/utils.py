@@ -14,6 +14,7 @@ from pyspark.sql.types import (
     ,LongType
     ,TimestampType
     ,FloatType
+    ,BooleanType
 )
 from pyspark.sql.utils import AnalysisException
 from pyspark.sql.functions import (
