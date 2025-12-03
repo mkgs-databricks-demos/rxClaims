@@ -46,7 +46,8 @@ class Bronze:
         self.schema = schema
         self.volume = volume
         self.volume_sub_path = volume_sub_path
-        self.table_properties = table_properties.append('quality', 'bronze')
+        self.table_properties = table_properties.copy()
+        self.table_properties['quality'] = 'bronze'
 
     def __repr__(self):
         return f"Bronze(catalog='{self.catalog}', schema='{self.schema}', volume='{self.volume}',volume_sub_path='{self.volume_sub_path}')"
