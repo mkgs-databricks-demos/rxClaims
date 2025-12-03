@@ -1,0 +1,34 @@
+# A sample job for ncpdp.
+
+resources:
+  jobs:
+    ncpdp_parsing:
+      name: NCPDP Rx Claim File Parsing
+
+      trigger:
+        # Run this job every day, exactly one day from the last run; see https://docs.databricks.com/api/workspace/jobs/create#trigger
+        periodic:
+          interval: 1
+          unit: DAYS
+
+      #email_notifications:
+      #  on_failure:
+      #    - your_email@example.com
+
+      parameters:
+        - name: catalog_use
+          default: ${var.catalog}
+        - name: schema_use
+          default: ${resources.schemas.ncpdp_schema.name}
+        - name: volume_use
+          default: ${resources.volumes.ncpdp_landing_volume.name}
+
+      tasks:
+        - task_key: refresh_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_etl.id}
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: ${var.serverless_environment_version}
