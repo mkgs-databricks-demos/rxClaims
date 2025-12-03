@@ -40,7 +40,7 @@ targets:
       host: https://dbc-e5684c0a-20fa.cloud.databricks.com
     variables:
       catalog: dev
-      schema: ncpdp
+      schema: ncpdp_rx
       event_log_catalog: ${var.catalog}
       event_log_schema: ${resources.schemas.ncpdp_schema.name}
 
@@ -53,7 +53,7 @@ targets:
       root_path: /Workspace/Users/${var.run_as_user}/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: prod
-      schema: ncpdp
+      schema: ncpdp_rx
       event_log_catalog: ${var.catalog}
       event_log_schema: ${resources.schemas.ncpdp_schema.name}
     permissions:
