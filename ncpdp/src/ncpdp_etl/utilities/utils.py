@@ -107,6 +107,30 @@ class Bronze:
             .selectExpr("_metadata as file_metadata", "*")
           )
 
+    def variant_transform(self):
+      @dp.table(
+        name = f"{self.catalog}.{self.schema}.ncpdp_bronze_variant"
+        ,comment = f"Streaming bronze transformation from NCPDP XML files as full text strings to variant."
+        table_properties={
+          'quality' : 'bronze'
+          ,'delta.enableChangeDataFeed' : 'true'
+          ,'delta.enableDeletionVectors' : 'true'
+          ,'delta.enableRowTracking' : 'true'
+          ,'delta.autoOptimize.optimizeWrite' : 'true' 
+          ,'delta.autoOptimize.autoCompact' : 'true'
+          ,'delta.enableVariantShredding' = 'true'
+        }
+      )
+      def variant_transform_function():
+        return (self.spark.readStream
+          .table(f"{self.catalog}.{self.schema}.ncpdp_bronze")
+          .withColumn("claims", from_xml(col("value"), "VARIANT"))
+        )
+    
+    ###################################
+    # other class methods
+    ###################################
+
     def to_dict(self):
         return {"spark": self.spark, "catalog": self.catalog, "schema": self.schema, "volume_sub_path": self.volume_sub_path}
 

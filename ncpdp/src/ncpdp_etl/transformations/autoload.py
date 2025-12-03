@@ -12,4 +12,5 @@ BronzePipeline = Bronze(
 )
 
 BronzePipeline.stream_ingest()
+BronzePipeline.variant_transform()
 
