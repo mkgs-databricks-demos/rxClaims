@@ -20,6 +20,9 @@ variables:
   serverless_environment_version: 
     default: "4"
     description: The Serverless Environment version to use with serverless workflows.  
+  run_as_user:
+    default: "matthew.giglia@databricks.com"
+    description: The principal the workflow and pipelines should run as.  
 
 targets:
   dev:
@@ -35,15 +38,16 @@ targets:
       catalog: dev
       schema: ncpdp
 
+
   prod:
     mode: production
     workspace:
       host: https://dbc-e5684c0a-20fa.cloud.databricks.com
-      # We explicitly deploy to /Workspace/Users/matthew.giglia@databricks.com to make sure we only have a single copy.
-      root_path: /Workspace/Users/matthew.giglia@databricks.com/.bundle/${bundle.name}/${bundle.target}
+      # We explicitly deploy to /Workspace/Users/${var.run_as_user} to make sure we only have a single copy. 
+      root_path: /Workspace/Users/${var.run_as_user}/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: prod
       schema: ncpdp
     permissions:
-      - user_name: matthew.giglia@databricks.com
+      - user_name: ${var.run_as_user}
         level: CAN_MANAGE

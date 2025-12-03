@@ -4,6 +4,11 @@ resources:
   pipelines:
     ncpdp_etl:
       name: ncpdp_etl
+      configuration:
+        catalog_use: ${var.catalog}
+        schema_use: ${resources.schemas.ncpdp_schema.name}
+        volume_use: ${resources.volumes.ncpdp_landing_volume.name}
+        volume_sub_path_use: ""
       catalog: ${var.catalog}
       schema: ${resources.schemas.ncpdp_schema.name}
       serverless: true
