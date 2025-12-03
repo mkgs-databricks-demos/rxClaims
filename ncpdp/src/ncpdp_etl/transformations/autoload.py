@@ -14,4 +14,6 @@ BronzePipeline = Bronze(
 BronzePipeline.stream_ingest()
 BronzePipeline.variant_transform()
 BronzePipeline.extract_requests()
+BronzePipeline.extract_responses()
+BronzePipeline.extract_supplemental()
 

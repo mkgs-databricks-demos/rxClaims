@@ -150,12 +150,70 @@ class Bronze:
         return (
           self.spark.sql(f"""
             SELECT
-              *
+              index_file_source_id
+              ,messages
+              ,requests.*
             FROM 
-              STREAM ({self.catalog}.{self.schema}.ncpdp_bronze_variant)      
+              STREAM ({self.catalog}.{self.schema}.ncpdp_bronze_variant)
+              ,LATERAL variant_explode_outer(messages:NcpdpRequest) as requests
           """)
         )
 
+    def extract_reponses(self):
+      @dp.table(
+        name = f"{self.catalog}.{self.schema}.ncpdp_bronze_responses"
+        ,comment = f"Initial parsing of the NCPDP Response Messages"
+        ,table_properties={
+          'quality' : 'bronze'
+          ,'delta.enableChangeDataFeed' : 'true'
+          ,'delta.enableDeletionVectors' : 'true'
+          ,'delta.enableRowTracking' : 'true'
+          ,'delta.autoOptimize.optimizeWrite' : 'true' 
+          ,'delta.autoOptimize.autoCompact' : 'true'
+          ,'delta.feature.variantType-preview' : 'supported'
+          ,'delta.enableVariantShredding' : 'true'
+        }
+      )
+      def extract_responses_function():
+        return (
+          self.spark.sql(f"""
+            SELECT
+              index_file_source_id
+              ,messages
+              ,responses.*
+            FROM 
+              STREAM ({self.catalog}.{self.schema}.ncpdp_bronze_variant)
+              ,LATERAL variant_explode_outer(messages:NcpdpResponse) as responses
+          """)
+        )
+
+    def extract_supplemental(self):
+      @dp.table(
+        name = f"{self.catalog}.{self.schema}.ncpdp_bronze_supplemental"
+        ,comment = f"Initial parsing of the NCPDP Response Messages"
+        ,table_properties={
+          'quality' : 'bronze'
+          ,'delta.enableChangeDataFeed' : 'true'
+          ,'delta.enableDeletionVectors' : 'true'
+          ,'delta.enableRowTracking' : 'true'
+          ,'delta.autoOptimize.optimizeWrite' : 'true' 
+          ,'delta.autoOptimize.autoCompact' : 'true'
+          ,'delta.feature.variantType-preview' : 'supported'
+          ,'delta.enableVariantShredding' : 'true'
+        }
+      )
+      def extract_supplemental_function():
+        return (
+          self.spark.sql(f"""
+            SELECT
+              index_file_source_id
+              ,messages
+              ,supplemental.*
+            FROM 
+              STREAM ({self.catalog}.{self.schema}.ncpdp_bronze_variant)
+              ,LATERAL variant_explode_outer(messages:Supplemental) as supplemental
+          """)
+        )
     
     ###################################
     # other class methods
