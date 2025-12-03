@@ -119,6 +119,7 @@ class Bronze:
           ,'delta.enableRowTracking' : 'true'
           ,'delta.autoOptimize.optimizeWrite' : 'true' 
           ,'delta.autoOptimize.autoCompact' : 'true'
+          ,'delta.feature.variantType-preview' : 'supported'
           ,'delta.enableVariantShredding' : 'true'
         }
       )
