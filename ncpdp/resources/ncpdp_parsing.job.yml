@@ -34,6 +34,68 @@ resources:
           default: false 
 
       tasks:
+        - task_key: Run_Set_Up
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.run_set_up}}"
+            right: "true"
+        - task_key: Create_Sub_Directories
+          depends_on:
+            - task_key: Run_Set_Up
+              outcome: "true"
+          notebook_task:
+            notebook_path: ../src/setup/00-create-sub-directories
+            source: WORKSPACE
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          disable_auto_optimization: false
+          environment_key: Default
+        - task_key: Not_Prod
+          depends_on:
+            - task_key: Create_Sub_Directories
+          condition_task:
+            op: NOT_EQUAL
+            left: "{{job.parameters.bundle_target}}"
+            right: prod
+        - task_key: Copy_Sample_Files
+          depends_on:
+            - task_key: Not_Prod
+              outcome: "true"
+          notebook_task:
+            notebook_path: ../src/setup/01-copy-sample-files-to-volume
+            source: WORKSPACE
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          disable_auto_optimization: false
+          environment_key: Default
+        - task_key: Trigger_Full_Refresh
+          depends_on:
+            - task_key: Copy_Sample_Files
+            - task_key: Run_Set_Up
+              outcome: "false"
+            - task_key: Not_Prod
+              outcome: "false"
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.pipeline_full_refresh}}"
+            right: "true"
+        - task_key: Full_Refresh_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh
+              outcome: "true"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_etl.id}
+            full_refresh: true
+        - task_key: Refresh_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh
+              outcome: "false"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_etl.id}
+            full_refresh: false
+        
         - task_key: refresh_pipeline
           pipeline_task:
             pipeline_id: ${resources.pipelines.ncpdp_etl.id}
