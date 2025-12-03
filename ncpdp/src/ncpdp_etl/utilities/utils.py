@@ -159,7 +159,7 @@ class Bronze:
           """)
         )
 
-    def extract_reponses(self):
+    def extract_responses(self):
       @dp.table(
         name = f"{self.catalog}.{self.schema}.ncpdp_bronze_responses"
         ,comment = f"Initial parsing of the NCPDP Response Messages"
