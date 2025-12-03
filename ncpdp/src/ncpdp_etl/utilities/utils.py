@@ -51,7 +51,7 @@ def is_valid_email(email):
     return re.match(pattern, email) is not None
 
 class Bronze:
-    def __init__(self, spark: SparkSession, catalog: str, schema: str, volume: str, volume_sub_path: str = None:
+    def __init__(self, spark: SparkSession, catalog: str, schema: str, volume: str, volume_sub_path: str = None):
         self.spark = spark
         self.catalog = catalog 
         self.schema = schema
