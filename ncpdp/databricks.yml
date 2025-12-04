@@ -43,9 +43,9 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://dbc-e5684c0a-20fa.cloud.databricks.com
+      host: https://e2-demo-field-eng.cloud.databricks.com/
     variables:
-      catalog: dev
+      catalog: mgiglia
       schema: ncpdp_rx
       volume: landing
       volume_sub_path: ""
@@ -55,7 +55,7 @@ targets:
       event_log_schema: ${resources.schemas.ncpdp_schema.name}
 
 
-  prod:
+  free_edition:
     mode: production
     workspace:
       host: https://dbc-e5684c0a-20fa.cloud.databricks.com
