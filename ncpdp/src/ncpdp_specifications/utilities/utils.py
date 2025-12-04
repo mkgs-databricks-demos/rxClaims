@@ -39,7 +39,7 @@ default_table_properties = {
   ,'delta.feature.catalogOwned-preview' : 'supported'
 }
 
-class Bronze:
+class DocumentParsing:
     def __init__(self, spark: SparkSession, catalog: str, schema: str, volume: str, volume_sub_path: str = None, table_properties: dict = default_table_properties):
         self.spark = spark
         self.catalog = catalog 
@@ -50,7 +50,7 @@ class Bronze:
         self.table_properties['quality'] = 'bronze'
 
     def __repr__(self):
-        return f"Bronze(catalog='{self.catalog}', schema='{self.schema}', volume='{self.volume}',volume_sub_path='{self.volume_sub_path}')"
+        return f"DocumentParsing(catalog='{self.catalog}', schema='{self.schema}', volume='{self.volume}',volume_sub_path='{self.volume_sub_path}')"
       
     def stream_ingest(self):
       schema_definition = f"""
