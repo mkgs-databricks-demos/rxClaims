@@ -106,7 +106,7 @@ targets:
         developer: ${var.tags_developer}
         RemoveAfter: ${var.tags_RemoveAfter}
         env: ${bundle.target}
-    default: true
+    default: false
     workspace:
       host: https://e2-demo-field-eng.cloud.databricks.com/
     variables:
