@@ -79,6 +79,7 @@ class Bronze:
         # path="<storage-location-path>",
         # partition_cols=["<partition-column>", "<partition-column>"],
         cluster_by = ["file_metadata.file_path"],
+        cluster_by_auto=True,
         schema=schema_definition,
         # row_filter = "row-filter-clause",
         temporary=False
@@ -97,6 +98,7 @@ class Bronze:
         name = f"{self.catalog}.{self.schema}.{self.file_type}_bronze_variant"
         ,comment = f"Streaming bronze transformation from NCPDP {self.file_type} XML files as full text strings to variant."
         ,table_properties=self.table_properties
+        ,cluster_by_auto=True
       )
       def variant_transform_function():
         return (self.spark.readStream
@@ -110,6 +112,7 @@ class Bronze:
         name = f"{self.catalog}.{self.schema}.{self.file_type}_bronze_requests"
         ,comment = f"Initial parsing of the NCPDP {self.file_type} Request Messages"
         ,table_properties=self.table_properties
+        ,cluster_by_auto=True
       )
       def extract_requests_function():
         return (
@@ -132,6 +135,7 @@ class Bronze:
         name = f"{self.catalog}.{self.schema}.{self.file_type}_bronze_responses"
         ,comment = f"Initial parsing of the NCPDP {self.file_type} Response Messages"
         ,table_properties=self.table_properties
+        ,cluster_by_auto=True
       )
       def extract_responses_function():
         return (
@@ -154,6 +158,7 @@ class Bronze:
         name = f"{self.catalog}.{self.schema}.{self.file_type}_bronze_supplemental"
         ,comment = f"Initial parsing of the NCPDP {self.file_type} Supplemental Messages"
         ,table_properties=self.table_properties
+        ,cluster_by_auto=True
       )
       def extract_supplemental_function():
         return (
