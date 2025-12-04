@@ -1,14 +1,40 @@
-from pyspark.sql.functions import udf
-from pyspark.sql.types import BooleanType
-import re
+"""
+The 'utilities' folder contains Python modules.
+Keeping them separate provides a clear overview
+of utilities you can reuse across your transformations.
+"""
+from pyspark import pipelines as dp
+from pyspark.sql import SparkSession
+from pyspark.sql.types import (
+    StructType
+    ,StructField
+    ,StringType
+    ,BinaryType
+    ,IntegerType
+    ,LongType
+    ,TimestampType
+    ,FloatType
+    ,BooleanType
+)
+from pyspark.sql.utils import AnalysisException
+from pyspark.sql.functions import (
+    col
+    ,current_timestamp
+    ,lit
+    ,udf
+    ,sha2
+    ,concat_ws
+    ,from_xml
+)
+from typing import Any
 
-@udf(returnType=BooleanType())
-def is_valid_email(email):
-    """
-    This function checks if the given email address has a valid format using regex.
-    Returns True if valid, False otherwise.
-    """
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    if email is None:
-        return False
-    return re.match(pattern, email) is not None
+default_table_properties = {
+  'delta.enableChangeDataFeed' : 'true'
+  ,'delta.enableDeletionVectors' : 'true'
+  ,'delta.enableRowTracking' : 'true'
+  ,'delta.autoOptimize.optimizeWrite' : 'true' 
+  ,'delta.autoOptimize.autoCompact' : 'true'
+  ,'delta.feature.variantType-preview' : 'supported'
+  ,'delta.enableVariantShredding' : 'true'
+  ,'delta.feature.catalogOwned-preview' : 'supported'
+}

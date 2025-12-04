@@ -1,6 +1,6 @@
 resources:
   pipelines:
-    ncpdp_specifications:
+    ncpdp_specification_document_parsing:
       name: NCPDP Specification Document Parsing ETL
       configuration:
         catalog_use: ${var.catalog}
@@ -12,7 +12,7 @@ resources:
       serverless: true
       root_path: ../src/ncpdp_specifications
       event_log:
-        name: event_log_ncpdp_specifications_etl
+        name: event_log_ncpdp_specification_document_parsing
         schema: ${var.event_log_schema}
         catalog: ${var.event_log_catalog}
       
