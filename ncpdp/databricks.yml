@@ -33,6 +33,24 @@ variables:
   run_as_user:
     default: "matthew.giglia@databricks.com"
     description: The principal the workflow and pipelines should run as.  
+  tags_parentProject: 
+    default: mkgs-databricks-demos
+    description: The name of the parent project used for tagging deployed resources. 
+  tags_project:
+    default: rxClaims
+    description: The name of the project/subproject used for tagging deployed resources.
+  tags_businessUnit: 
+    default: "Healthcare and Life Sciences"
+    description: The business or accounting unit assigned.  
+  tags_RemoveAfter: 
+    default: 2026-12-04
+    description: Date the resources may be destroyed safely.  Defaults to one year after deployment. 
+  tags_developer: 
+    default: matthew.giglia@databricks.com
+    description: Original developer or developers for Ops contacts
+  tags_requestedBy:
+    default: Databricks
+    description: Team, company or stakeholders that requested the project.  
 
 targets:
   dev:
