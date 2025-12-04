@@ -10,6 +10,7 @@ resources:
       catalog: ${var.catalog}
       schema: ${resources.schemas.ncpdp_schema.name}
       serverless: true
+      channel: PREVIEW
       root_path: ../src/ncpdp_specifications
       event_log:
         name: event_log_ncpdp_specification_document_parsing

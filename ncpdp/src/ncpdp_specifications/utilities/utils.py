@@ -108,5 +108,29 @@ class DocumentParsing:
             return(
                 self.spark.readStream
                 .table(f"{self.catalog}.{self.schema}.specification_documents")
-                .filter(array_contains(['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.ppt', '.pptx'], lower(regexp_extract(col('path'), r'(\.[^.]+)$', 1))))
+                .filter(
+                    array_contains(
+                        lit(['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.ppt', '.pptx'])
+                        ,lower(regexp_extract(col('path'), r'(\.[^.]+)$', 1))
+                    )
+		        )
+                .selectExpr("spec_file_source_id", "path", "ai_parse_document(content) as parsed")
             )
+        
+        @dp.temporary_view(
+            name = "raw_documents"
+        )
+        def raw_documents_function():
+            return(
+                self.spark.readStream
+                .table(f"{self.catalog}.{self.schema}.specification_documents")
+                .filter(
+                    array_contains(
+                        lit(['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.ppt', '.pptx'])
+                        ,lower(regexp_extract(col('path'), r'(\.[^.]+)$', 1))
+                    ) == False
+                )
+                .selectExpr("spec_file_source_id", "path", "null as raw_parsed", "decode(content, 'utf-8') as text", "null as error_status","ai_parse_document(content) as parsed")
+            )
+        
+
