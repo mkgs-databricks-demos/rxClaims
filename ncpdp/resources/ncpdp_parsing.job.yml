@@ -34,7 +34,7 @@ resources:
           default: false 
 
       tasks:
-        
+
         # Set Up the Volumes and Optionally Load Sample Files 
         - task_key: Run_Set_Up
           condition_task:
@@ -73,7 +73,8 @@ resources:
           disable_auto_optimization: false
           environment_key: primary
 
-        # Primary ETL Pipeline Control 
+      # Primary ETL Pipeline Control
+        # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
         - task_key: Trigger_Full_Refresh
           depends_on:
             - task_key: Copy_Sample_Files
@@ -85,6 +86,8 @@ resources:
             op: EQUAL_TO
             left: "{{job.parameters.pipeline_full_refresh}}"
             right: "true"
+
+        # ETL Pipeline Full Refresh
         - task_key: Full_Refresh_Pipeline
           depends_on:
             - task_key: Trigger_Full_Refresh
@@ -92,7 +95,8 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.ncpdp_etl.id}
             full_refresh: true
-            environment_key: primary
+            
+        # ETL Pipeline Incremental Refresh
         - task_key: Refresh_Pipeline
           depends_on:
             - task_key: Trigger_Full_Refresh
@@ -100,7 +104,7 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.ncpdp_etl.id}
             full_refresh: false
-            environment_key: primary
+            
 
       environments:
         - environment_key: primary
