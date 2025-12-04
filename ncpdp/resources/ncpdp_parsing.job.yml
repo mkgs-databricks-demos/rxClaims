@@ -34,6 +34,8 @@ resources:
           default: false 
 
       tasks:
+        
+        # Set Up the Volumes and Optionally Load Sample Files 
         - task_key: Run_Set_Up
           condition_task:
             op: EQUAL_TO
@@ -44,13 +46,13 @@ resources:
             - task_key: Run_Set_Up
               outcome: "true"
           notebook_task:
-            notebook_path: ../src/setup/00-create-sub-directories
+            notebook_path: ../src/setup/00-create-sub-directories.ipynb
             source: WORKSPACE
           max_retries: 3
           min_retry_interval_millis: 60000
           retry_on_timeout: true
           disable_auto_optimization: false
-          environment_key: Default
+          environment_key: primary
         - task_key: Not_Prod
           depends_on:
             - task_key: Create_Sub_Directories
@@ -63,13 +65,15 @@ resources:
             - task_key: Not_Prod
               outcome: "true"
           notebook_task:
-            notebook_path: ../src/setup/01-copy-sample-files-to-volume
+            notebook_path: ../src/setup/01-copy-sample-files-to-volume.ipynb
             source: WORKSPACE
           max_retries: 3
           min_retry_interval_millis: 60000
           retry_on_timeout: true
           disable_auto_optimization: false
-          environment_key: Default
+          environment_key: primary
+
+        # Primary ETL Pipeline Control 
         - task_key: Trigger_Full_Refresh
           depends_on:
             - task_key: Copy_Sample_Files
@@ -88,6 +92,7 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.ncpdp_etl.id}
             full_refresh: true
+            environment_key: primary
         - task_key: Refresh_Pipeline
           depends_on:
             - task_key: Trigger_Full_Refresh
@@ -95,12 +100,9 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.ncpdp_etl.id}
             full_refresh: false
-        
-        - task_key: refresh_pipeline
-          pipeline_task:
-            pipeline_id: ${resources.pipelines.ncpdp_etl.id}
+            environment_key: primary
 
       environments:
-        - environment_key: default
+        - environment_key: primary
           spec:
             environment_version: ${var.serverless_environment_version}

@@ -1,0 +1,6 @@
+resources:
+  volumes:
+    spec_documents_volume:
+      catalog_name: ${var.catalog}
+      name: spec_documents
+      schema_name: ${resources.schemas.ncpdp_schema.name}
