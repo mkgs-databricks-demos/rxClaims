@@ -9,3 +9,4 @@ DocumentParsingPipeline = DocumentParsing(
 )
 
 DocumentParsingPipeline.stream_ingest()
+DocumentParsingPipeline.parse_documents()

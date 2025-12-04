@@ -25,6 +25,8 @@ from pyspark.sql.functions import (
     ,sha2
     ,concat_ws
     ,from_xml
+    ,array_contains
+    ,ai_parse_document
 )
 from typing import Any
 
@@ -80,7 +82,7 @@ class DocumentParsing:
         table_properties=self.table_properties,
         # path="<storage-location-path>",
         # partition_cols=["<partition-column>", "<partition-column>"],
-        cluster_by = ["file_metadata.file_path"],
+        cluster_by = ["path"],
         cluster_by_auto=True,
         schema=schema_definition,
         # row_filter = "row-filter-clause",
@@ -94,3 +96,14 @@ class DocumentParsing:
             .load(volume_path)
             .selectExpr("sha2(concat(_metadata.*), 256) as spec_file_source_id", "_metadata as file_metadata", "*")
           )
+
+    def parse_documents(self): 
+        @dp.temporary_view(
+            name = "parsed_documents"
+        )
+        def parse_documents_function():
+            return(
+                self.spark.readStream
+                .table(f"{self.catalog}.{self.schema}.specification_documents")
+                .filter(array_contains(['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.ppt', '.pptx'], lower(regexp_extract(col('path'), r'(\.[^.]+)$', 1))))
+            )
