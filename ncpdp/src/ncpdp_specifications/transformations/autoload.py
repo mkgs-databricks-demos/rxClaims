@@ -8,4 +8,4 @@ DocumentParsingPipeline = DocumentParsing(
     ,volume_sub_path = spark.conf.get("volume_sub_path_use")
 )
 
-    DocumentParsingPipeline.stream_ingest()
+DocumentParsingPipeline.stream_ingest()

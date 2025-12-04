@@ -55,7 +55,7 @@ class Bronze:
       
     def stream_ingest(self):
       schema_definition = f"""
-        index_file_source_id STRING NOT NULL PRIMARY KEY COMMENT 'Unique identifier for the ingested file.',
+        transaction_file_source_id STRING NOT NULL PRIMARY KEY COMMENT 'Unique identifier for the ingested file.',
         file_metadata STRUCT < file_path: STRING, 
         file_name: STRING,
         file_size: BIGINT,
@@ -90,7 +90,7 @@ class Bronze:
             .format("cloudFiles")
             .option("cloudFiles.format", "text")
             .load(volume_path)
-            .selectExpr("sha2(concat(_metadata.*), 256) as index_file_source_id", "_metadata as file_metadata", "*")
+            .selectExpr("sha2(concat(_metadata.*), 256) as transaction_file_source_id", "_metadata as file_metadata", "*")
           )
 
     def variant_transform(self):

@@ -36,7 +36,7 @@ default_table_properties = {
   ,'delta.autoOptimize.autoCompact' : 'true'
   ,'delta.feature.variantType-preview' : 'supported'
   ,'delta.enableVariantShredding' : 'true'
-  ,'delta.feature.catalogOwned-preview' : 'supported'
+#   ,'delta.feature.catalogOwned-preview' : 'supported'
 }
 
 class DocumentParsing:
@@ -54,7 +54,7 @@ class DocumentParsing:
       
     def stream_ingest(self):
       schema_definition = f"""
-        index_file_source_id STRING NOT NULL PRIMARY KEY COMMENT 'Unique identifier for the ingested file.',
+        spec_file_source_id STRING NOT NULL PRIMARY KEY COMMENT 'Unique identifier for the ingested file.',
         file_metadata STRUCT < file_path: STRING, 
         file_name: STRING,
         file_size: BIGINT,
@@ -62,7 +62,10 @@ class DocumentParsing:
         file_block_length: BIGINT,
         file_modification_time: TIMESTAMP > NOT NULL COMMENT 'Metadata about the file ingested.'
         ,ingest_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP() COMMENT 'The date timestamp the file was ingested.'
-        ,value STRING COMMENT 'The raw XML file contents.'
+        ,path STRING COMMENT 'The path to the file starting with dbfs:/'
+        ,modificationTime TIMESTAMP COMMENT 'The date timestamp the file was modified.'
+        ,length LONG COMMENT 'Length of the file in bytes.'
+        ,content BINARY COMMENT 'Binary representation of the file.'
       """
 
       if self.volume_sub_path == None:
@@ -79,7 +82,7 @@ class DocumentParsing:
         # partition_cols=["<partition-column>", "<partition-column>"],
         cluster_by = ["file_metadata.file_path"],
         cluster_by_auto=True,
-        # schema=schema_definition,
+        schema=schema_definition,
         # row_filter = "row-filter-clause",
         temporary=False
       )
@@ -89,5 +92,5 @@ class DocumentParsing:
             .format("cloudFiles")
             .option("cloudFiles.format", "binaryFile")
             .load(volume_path)
-            .selectExpr("sha2(concat(_metadata.*), 256) as index_file_source_id", "_metadata as file_metadata", "*")
+            .selectExpr("sha2(concat(_metadata.*), 256) as spec_file_source_id", "_metadata as file_metadata", "*")
           )
