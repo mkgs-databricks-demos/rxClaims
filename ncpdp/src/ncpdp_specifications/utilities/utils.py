@@ -78,7 +78,8 @@ class Bronze:
         # path="<storage-location-path>",
         # partition_cols=["<partition-column>", "<partition-column>"],
         cluster_by = ["file_metadata.file_path"],
-        schema=schema_definition,
+        cluster_by_auto=True,
+        # schema=schema_definition,
         # row_filter = "row-filter-clause",
         temporary=False
       )
@@ -86,7 +87,7 @@ class Bronze:
       def stream_ingest_function():
           return (self.spark.readStream
             .format("cloudFiles")
-            .option("cloudFiles.format", "text")
+            .option("cloudFiles.format", "binaryFile")
             .load(volume_path)
             .selectExpr("sha2(concat(_metadata.*), 256) as index_file_source_id", "_metadata as file_metadata", "*")
           )
