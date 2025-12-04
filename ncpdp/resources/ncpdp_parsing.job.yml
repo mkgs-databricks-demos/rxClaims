@@ -3,7 +3,7 @@
 resources:
   jobs:
     ncpdp_parsing:
-      name: NCPDP Rx Claim File Parsing
+      name: NCPDP Pharmacy Transactions
 
       trigger:
         # Run this job every day, exactly one day from the last run; see https://docs.databricks.com/api/workspace/jobs/create#trigger

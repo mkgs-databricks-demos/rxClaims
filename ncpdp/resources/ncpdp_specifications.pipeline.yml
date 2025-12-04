@@ -1,0 +1,23 @@
+resources:
+  pipelines:
+    ncpdp_specifications:
+      name: NCPDP Specification Document Parsing ETL
+      configuration:
+        catalog_use: ${var.catalog}
+        schema_use: ${resources.schemas.ncpdp_schema.name}
+        volume_use: ${resources.volumes.spec_documents_volume.name}
+        volume_sub_path_use: ""
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.ncpdp_schema.name}
+      serverless: true
+      root_path: ../src/ncpdp_specifications
+      event_log:
+        name: event_log_ncpdp_specifications_etl
+        schema: ${var.event_log_schema}
+        catalog: ${var.event_log_catalog}
+      
+      libraries:
+        - glob:
+            include: ../src/ncpdp_specifications/transformations/**
+
+

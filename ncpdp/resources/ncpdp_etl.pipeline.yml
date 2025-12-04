@@ -3,7 +3,7 @@
 resources:
   pipelines:
     ncpdp_etl:
-      name: ncpdp_etl
+      name: NCPDP Pharmacy Transaction ETL
       configuration:
         catalog_use: ${var.catalog}
         schema_use: ${resources.schemas.ncpdp_schema.name}
