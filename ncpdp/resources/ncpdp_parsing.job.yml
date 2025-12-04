@@ -82,6 +82,7 @@ resources:
               outcome: "false"
             - task_key: Not_Prod
               outcome: "false"
+          run_if: AT_LEAST_ONE_SUCCESS
           condition_task:
             op: EQUAL_TO
             left: "{{job.parameters.pipeline_full_refresh}}"
