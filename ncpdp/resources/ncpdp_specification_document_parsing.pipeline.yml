@@ -16,6 +16,14 @@ resources:
         name: event_log_ncpdp_specification_document_parsing
         schema: ${var.event_log_schema}
         catalog: ${var.event_log_catalog}
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
       
       libraries:
         - glob:

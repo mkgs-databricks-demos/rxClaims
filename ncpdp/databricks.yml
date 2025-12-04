@@ -59,6 +59,20 @@ targets:
     # - Any job schedules and triggers are paused by default.
     # See also https://docs.databricks.com/dev-tools/bundles/deployment-modes.html.
     mode: development
+    presets:
+      # name_prefix: '[${bundle.target} ${workspace.current_user.short_name}] '
+      source_linked_deployment: true
+      trigger_pause_status: PAUSED
+      jobs_max_concurrent_runs: 1
+      pipelines_development: true
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
     default: true
     workspace:
       host: https://e2-demo-field-eng.cloud.databricks.com/
@@ -75,10 +89,25 @@ targets:
 
   free_edition:
     mode: production
+    presets:
+      # name_prefix: '[${bundle.target} ${workspace.current_user.short_name}] '
+      source_linked_deployment: false
+      trigger_pause_status: PAUSED
+      jobs_max_concurrent_runs: 1
+      pipelines_development: true
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
     workspace:
       host: https://dbc-e5684c0a-20fa.cloud.databricks.com
       # We explicitly deploy to /Workspace/Users/${var.run_as_user} to make sure we only have a single copy. 
-      root_path: /Workspace/Users/${var.run_as_user}/.bundle/${bundle.name}/${bundle.target}
+      # root_path: /Workspace/Users/${var.run_as_user}/.bundle/${bundle.name}/${bundle.target}
+      root_path: /Workspace/${bundle.target}/.bundle/${bundle.name}
     variables:
       catalog: prod
       schema: ncpdp_rx
