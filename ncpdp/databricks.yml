@@ -75,6 +75,39 @@ targets:
         env: ${bundle.target}
     default: true
     workspace:
+      host: https://fe-vm-mkgs-databricks-demos.cloud.databricks.com/
+    variables:
+      catalog: ncpdp_dev
+      schema: rx_claims
+      volume: landing
+      volume_sub_path: ""
+      ncpdp_file_types: ClaimBilling
+      serverless_environment_version: "4"
+      event_log_catalog: ${var.catalog}
+      event_log_schema: ${resources.schemas.ncpdp_schema.name}
+
+  e2_demo_fe:
+    # The default target uses 'mode: development' to create a development copy.
+    # - Deployed resources get prefixed with '[dev my_user_name]'
+    # - Any job schedules and triggers are paused by default.
+    # See also https://docs.databricks.com/dev-tools/bundles/deployment-modes.html.
+    mode: development
+    presets:
+      name_prefix: '[dev ${workspace.current_user.short_name}] '
+      source_linked_deployment: true
+      trigger_pause_status: PAUSED
+      jobs_max_concurrent_runs: 1
+      pipelines_development: true
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    default: true
+    workspace:
       host: https://e2-demo-field-eng.cloud.databricks.com/
     variables:
       catalog: mgiglia
