@@ -118,7 +118,7 @@ class Bronze:
         return (
           self.spark.sql(f"""
             SELECT
-              index_file_source_id
+              transaction_file_source_id
               ,messages
               ,requests.pos as request_pos
               ,requests.key as request_segment
@@ -141,7 +141,7 @@ class Bronze:
         return (
           self.spark.sql(f"""
             SELECT
-              index_file_source_id
+              transaction_file_source_id
               ,messages
               ,responses.pos as response_pos
               ,responses.key as response_segment
@@ -164,7 +164,7 @@ class Bronze:
         return (
           self.spark.sql(f"""
             SELECT
-              index_file_source_id
+              transaction_file_source_id
               ,messages
               ,supplemental.*
             FROM 
