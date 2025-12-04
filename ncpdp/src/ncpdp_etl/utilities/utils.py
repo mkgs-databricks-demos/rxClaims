@@ -89,6 +89,7 @@ class Bronze:
           return (self.spark.readStream
             .format("cloudFiles")
             .option("cloudFiles.format", "text")
+            .option("cloudFiles.wholeText", "true")
             .load(volume_path)
             .selectExpr("sha2(concat(_metadata.*), 256) as transaction_file_source_id", "_metadata as file_metadata", "*")
           )
