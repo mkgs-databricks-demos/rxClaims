@@ -1,0 +1,31 @@
+# The main pipeline for ncpdp
+
+resources:
+  pipelines:
+    ncpdp_etl:
+      name: NCPDP Pharmacy Transaction ETL
+      configuration:
+        catalog_use: ${var.catalog}
+        schema_use: ${resources.schemas.ncpdp_schema.name}
+        volume_use: ${resources.volumes.ncpdp_landing_volume.name}
+        volume_sub_path_use: ""
+        # separate file_types with commas
+        file_types: ClaimBilling
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.ncpdp_schema.name}
+      serverless: true
+      root_path: "../src/ncpdp_etl"
+      event_log:
+        name: event_log_ncpdp_etl
+        schema: ${var.event_log_schema}
+        catalog: ${var.event_log_catalog}
+
+      libraries:
+        - glob:
+            include: ../src/ncpdp_etl/transformations/**
+
+      # environment:
+      #   dependencies:
+      #     # We include every dependency defined by pyproject.toml by defining an editable environment
+      #     # that points to the folder where pyproject.toml is deployed.
+      #     - --editable ${workspace.file_path}

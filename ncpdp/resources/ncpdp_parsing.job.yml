@@ -1,0 +1,113 @@
+# A sample job for ncpdp.
+
+resources:
+  jobs:
+    ncpdp_parsing:
+      name: NCPDP Pharmacy Transactions
+
+      trigger:
+        # Run this job every day, exactly one day from the last run; see https://docs.databricks.com/api/workspace/jobs/create#trigger
+        periodic:
+          interval: 1
+          unit: DAYS
+
+      #email_notifications:
+      #  on_failure:
+      #    - your_email@example.com
+
+      parameters:
+        - name: catalog_use
+          default: ${var.catalog}
+        - name: schema_use
+          default: ${resources.schemas.ncpdp_schema.name}
+        - name: volume_use
+          default: ${resources.volumes.ncpdp_landing_volume.name}
+        - name: volume_sub_path
+          default: ${var.volume_sub_path}
+        - name: ncpdp_file_types
+          default: ${var.ncpdp_file_types}
+        - name: bundle_target
+          default: ${bundle.target}
+        - name: run_set_up
+          default: false
+        - name: pipeline_full_refresh
+          default: false 
+
+      tasks:
+
+        # Set Up the Volumes and Optionally Load Sample Files 
+        - task_key: Run_Set_Up
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.run_set_up}}"
+            right: "true"
+        - task_key: Create_Sub_Directories
+          depends_on:
+            - task_key: Run_Set_Up
+              outcome: "true"
+          notebook_task:
+            notebook_path: ../src/setup/00-create-sub-directories.ipynb
+            source: WORKSPACE
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          disable_auto_optimization: false
+          environment_key: primary
+        - task_key: Not_Prod
+          depends_on:
+            - task_key: Create_Sub_Directories
+          condition_task:
+            op: NOT_EQUAL
+            left: "{{job.parameters.bundle_target}}"
+            right: prod
+        - task_key: Copy_Sample_Files
+          depends_on:
+            - task_key: Not_Prod
+              outcome: "true"
+          notebook_task:
+            notebook_path: ../src/setup/01-copy-sample-files-to-volume.ipynb
+            source: WORKSPACE
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          disable_auto_optimization: false
+          environment_key: primary
+
+      # Primary ETL Pipeline Control
+        # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
+        - task_key: Trigger_Full_Refresh
+          depends_on:
+            - task_key: Copy_Sample_Files
+            - task_key: Run_Set_Up
+              outcome: "false"
+            - task_key: Not_Prod
+              outcome: "false"
+          run_if: AT_LEAST_ONE_SUCCESS
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.pipeline_full_refresh}}"
+            right: "true"
+
+        # ETL Pipeline Full Refresh
+        - task_key: Full_Refresh_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh
+              outcome: "true"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_etl.id}
+            full_refresh: true
+            
+        # ETL Pipeline Incremental Refresh
+        - task_key: Refresh_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh
+              outcome: "false"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_etl.id}
+            full_refresh: false
+            
+
+      environments:
+        - environment_key: primary
+          spec:
+            environment_version: ${var.serverless_environment_version}
