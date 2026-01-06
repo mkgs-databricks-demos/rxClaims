@@ -10,4 +10,5 @@ DocumentParsingPipeline = DocumentParsing(
 )
 
 DocumentParsingPipeline.stream_ingest()
+# waiting for the Spark Declarative Pipeline Runtime to be at least 17.3 before continuing development and running the parse_documents class method.  as of 20260106 the current and preview channels are both 16.4.
 # DocumentParsingPipeline.parse_documents()

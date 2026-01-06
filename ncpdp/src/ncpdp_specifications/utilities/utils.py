@@ -101,6 +101,7 @@ class DocumentParsing:
                 .selectExpr("sha2(concat(_metadata.*), 256) as spec_file_source_id", "_metadata as file_metadata", "*")
             )
 
+    # waiting for the Spark Declarative Pipeline Runtime to be at least 17.3 before continuing development of this section.  as of 20260106 the current and preview channels are both 16.4.  
     def parse_documents(self): 
 
         if self.volume_parsed_image_output_sub_path == None:
