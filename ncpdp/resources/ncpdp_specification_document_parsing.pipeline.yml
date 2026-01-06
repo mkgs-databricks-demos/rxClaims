@@ -6,7 +6,8 @@ resources:
         catalog_use: ${var.catalog}
         schema_use: ${resources.schemas.ncpdp_schema.name}
         volume_use: ${resources.volumes.spec_documents_volume.name}
-        volume_sub_path_use: ""
+        volume_sub_path_use: ${var.spec_documents_raw_sub_path}
+        volume_parsed_image_output_sub_path_use: ${var.spec_documents_parsed_image_output_sub_path}
       catalog: ${var.catalog}
       schema: ${resources.schemas.ncpdp_schema.name}
       serverless: true

@@ -18,11 +18,17 @@ variables:
     description: The name of the volume to use for autoloading files
     default: landing
   volume_sub_path: 
-    description: Sub directory in the volume where the NCPDP files will be autoloaded from, if applicable, with a slash to start and no trailing slash. E.g. /dir1/dir2
+    description: Sub directory in the volume where the NCPDP files will be autoloaded from, if applicable, with no slash to start and no trailing slash. E.g. dir1/dir2/dir3
     default: ""
   ncpdp_file_types: 
     description: The file types that will be loaded into tables as a string of comma separated values.  Each file type should be placed in its respective directory either at the volume level, or in the volume sub path level.  The directories and the values in the string much match.  E.g. ClaimBilling, ClaimRebill, ClaimReversal
     default: ClaimBilling
+  spec_documents_raw_sub_path: 
+    description: The optional sub path of the volume where the original spec documents to be parsed are downloaded to, if applicable, with no slash to start and no trailing slash.  E.g. dir1/dir2/dir3
+    default: ""
+  spec_documents_parsed_image_output_sub_path:
+    description: The optional sub path of the volume where the parsed image output should be saved when running ai_parse_document version 2, if applicable, with no slash to start and no trailing slash.  E.g. dir1/dir2/dir3
+    default: ""
   event_log_catalog:
     description: The catalog to publish the ETL Pipeline's event log.
   event_log_schema:
@@ -82,6 +88,8 @@ targets:
       volume: landing
       volume_sub_path: ""
       ncpdp_file_types: ClaimBilling
+      spec_documents_raw_sub_path: raw
+      spec_documents_parsed_image_output_sub_path: parsed_image_output
       serverless_environment_version: "4"
       event_log_catalog: ${var.catalog}
       event_log_schema: ${resources.schemas.ncpdp_schema.name}
