@@ -32,6 +32,8 @@ resources:
           default: false
         - name: pipeline_full_refresh
           default: false 
+        - name: run_spec_process
+          default: false
 
       tasks:
 
@@ -72,6 +74,46 @@ resources:
           retry_on_timeout: true
           disable_auto_optimization: false
           environment_key: primary
+
+      # Specification Document Control
+        - task_key: Is_Development_Mode
+          condition_task:
+            op: EQUAL_TO
+            left: "{{bundle.target.mode}}"
+            right: development
+        - task_key: Parse_Specification_Documents
+          depends_on:
+            - task_key: Is_Development_Mode
+              outcome: "true"
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.run_spec_process}}"
+            right: "true"
+        - task_key: Download_Spec_Doc
+          depends_on:
+            - task_key: Parse_Specification_Documents
+              outcome: "true"
+          notebook_task:
+            notebook_path: ../src/ncpdp_spec_download/00-download-specs-to-volume.ipynb
+            source: WORKSPACE
+            base_parameters: 
+              spec_document_url: https://ncpdp.org/NCPDP/media/pdf/Payer_Sheet_Template_1.pdf
+              volume_use: ${resources.volumes.spec_documents_volume.name}
+              volume_sub_path: ${var.spec_documents_raw_sub_path}
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          disable_auto_optimization: false
+          environment_key: primary
+        # # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
+        # - task_key: Trigger_Full_Refresh_Specification_Pipeline
+        #   depends_on:
+        #     - task_key: Download_Spec_Doc
+        #   condition_task:
+        #     op: EQUAL_TO
+        #     left: "{{job.parameters.pipeline_full_refresh}}"
+        #     right: "true"
+        
 
       # Primary ETL Pipeline Control
         # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
