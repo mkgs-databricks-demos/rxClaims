@@ -32,6 +32,8 @@ resources:
           default: false
         - name: pipeline_full_refresh
           default: false 
+        - name: deployment_mode
+          default: ${var.deployment_mode}
         - name: run_spec_process
           default: false
 
@@ -79,7 +81,7 @@ resources:
         - task_key: Is_Development_Mode
           condition_task:
             op: EQUAL_TO
-            left: "{{bundle.target.mode}}"
+            left: "{{job.parameters.deployment_mode}}"
             right: development
         - task_key: Parse_Specification_Documents
           depends_on:

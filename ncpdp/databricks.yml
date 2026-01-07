@@ -57,6 +57,9 @@ variables:
   tags_requestedBy:
     default: Databricks
     description: Team, company or stakeholders that requested the project.  
+  deployment_mode: 
+    default: production
+    description: Sets the target's mode value in the target and allows it to be references in other specification yamls such as in job parameters.  
 
 targets:
   dev:
@@ -93,13 +96,14 @@ targets:
       serverless_environment_version: "4"
       event_log_catalog: ${var.catalog}
       event_log_schema: ${resources.schemas.ncpdp_schema.name}
+      deployment_mode: development
 
   e2_demo_fe:
     # The default target uses 'mode: development' to create a development copy.
     # - Deployed resources get prefixed with '[dev my_user_name]'
     # - Any job schedules and triggers are paused by default.
     # See also https://docs.databricks.com/dev-tools/bundles/deployment-modes.html.
-    mode: development
+    mode: ${var.deployment_mode}
     presets:
       name_prefix: '[dev ${workspace.current_user.short_name}] '
       source_linked_deployment: true
@@ -126,10 +130,11 @@ targets:
       serverless_environment_version: "4"
       event_log_catalog: ${var.catalog}
       event_log_schema: ${resources.schemas.ncpdp_schema.name}
+      deployment_mode: development
 
 
   free_edition:
-    mode: production
+    mode: ${var.deployment_mode}
     presets:
       # name_prefix: '[${bundle.target} ${workspace.current_user.short_name}] '
       source_linked_deployment: false
