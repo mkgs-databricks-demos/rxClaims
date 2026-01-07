@@ -20,12 +20,6 @@ resources:
           default: ${var.catalog}
         - name: schema_use
           default: ${resources.schemas.ncpdp_schema.name}
-        - name: volume_use
-          default: ${resources.volumes.ncpdp_landing_volume.name}
-        - name: volume_sub_path
-          default: ${var.volume_sub_path}
-        - name: ncpdp_file_types
-          default: ${var.ncpdp_file_types}
         - name: bundle_target
           default: ${bundle.target}
         - name: run_set_up
@@ -39,12 +33,18 @@ resources:
 
       tasks:
 
-        # Set Up the Volumes and Optionally Load Sample Files 
+        #####################################################
+        # Set Up the Volumes and Optionally Load Sample Files
+        #####################################################
+
+        # Conditional Task to Determine if set up should be run based on job parameter value.
         - task_key: Run_Set_Up
           condition_task:
             op: EQUAL_TO
             left: "{{job.parameters.run_set_up}}"
             right: "true"
+        
+        # Creates the required subdirectories in the volumes for each ncpdp file type
         - task_key: Create_Sub_Directories
           depends_on:
             - task_key: Run_Set_Up
@@ -52,11 +52,17 @@ resources:
           notebook_task:
             notebook_path: ../src/setup/00-create-sub-directories.ipynb
             source: WORKSPACE
+            base_parameters:
+              volume_use: "${resources.volumes.ncpdp_landing_volume.name}"
+              volume_sub_path: "${var.volume_sub_path}"
+              ncpdp_file_types: "${var.ncpdp_file_types}"
           max_retries: 3
           min_retry_interval_millis: 60000
           retry_on_timeout: true
           disable_auto_optimization: false
           environment_key: primary
+
+        # Conditional determines if the target is a non-production target, and should have the sample files copied over to the subdirectories for development or testing.  
         - task_key: Not_Prod
           depends_on:
             - task_key: Create_Sub_Directories
@@ -64,6 +70,8 @@ resources:
             op: NOT_EQUAL
             left: "{{job.parameters.bundle_target}}"
             right: prod
+        
+        # Copies the Sample Files from the fixtures folder of the repo to the sub directories of the volumes.
         - task_key: Copy_Sample_Files
           depends_on:
             - task_key: Not_Prod
@@ -71,18 +79,28 @@ resources:
           notebook_task:
             notebook_path: ../src/setup/01-copy-sample-files-to-volume.ipynb
             source: WORKSPACE
+            base_parameters:
+              volume_use: "${resources.volumes.ncpdp_landing_volume.name}"
+              volume_sub_path: "${var.volume_sub_path}"
+              ncpdp_file_types: "${var.ncpdp_file_types}"
           max_retries: 3
           min_retry_interval_millis: 60000
           retry_on_timeout: true
           disable_auto_optimization: false
           environment_key: primary
 
+      ################################
       # Specification Document Control
+      ################################
+
+        # Check for development mode deployments
         - task_key: Is_Development_Mode
           condition_task:
             op: EQUAL_TO
             left: "{{job.parameters.deployment_mode}}"
             right: development
+        
+        # Conditional on whether to run the Specification Document Parsing Process in the development environment
         - task_key: Parse_Specification_Documents
           depends_on:
             - task_key: Is_Development_Mode
@@ -91,6 +109,8 @@ resources:
             op: EQUAL_TO
             left: "{{job.parameters.run_spec_process}}"
             right: "true"
+        
+        # Download the Specification Document from the Public Internet (note that serverless egress controls must allow for this download)
         - task_key: Download_Spec_Doc
           depends_on:
             - task_key: Parse_Specification_Documents
@@ -100,13 +120,14 @@ resources:
             source: WORKSPACE
             base_parameters: 
               spec_document_url: https://ncpdp.org/NCPDP/media/pdf/Payer_Sheet_Template_1.pdf
-              volume_use: ${resources.volumes.spec_documents_volume.name}
-              volume_sub_path: ${var.spec_documents_raw_sub_path}
+              volume_use: "${resources.volumes.spec_documents_volume.name}"
+              volume_sub_path: "${var.spec_documents_raw_sub_path}"
           max_retries: 3
           min_retry_interval_millis: 60000
           retry_on_timeout: true
           disable_auto_optimization: false
           environment_key: primary
+        
         # # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
         # - task_key: Trigger_Full_Refresh_Specification_Pipeline
         #   depends_on:
@@ -116,8 +137,10 @@ resources:
         #     left: "{{job.parameters.pipeline_full_refresh}}"
         #     right: "true"
         
-
+      ##############################
       # Primary ETL Pipeline Control
+      ##############################
+
         # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
         - task_key: Trigger_Full_Refresh
           depends_on:
