@@ -128,14 +128,32 @@ resources:
           disable_auto_optimization: false
           environment_key: primary
         
-        # # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
-        # - task_key: Trigger_Full_Refresh_Specification_Pipeline
-        #   depends_on:
-        #     - task_key: Download_Spec_Doc
-        #   condition_task:
-        #     op: EQUAL_TO
-        #     left: "{{job.parameters.pipeline_full_refresh}}"
-        #     right: "true"
+        # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
+        - task_key: Trigger_Full_Refresh_Specification_Pipeline
+          depends_on:
+            - task_key: Download_Spec_Doc
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.pipeline_full_refresh}}"
+            right: "true"
+
+        # Spec Doc Ingestion Pipeline Full Refresh
+        - task_key: Full_Refresh_Spec_Doc_Ingest_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh
+              outcome: "true"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_specification_document_parsing.id}
+            full_refresh: true
+            
+        # Spec Doc Ingestion Pipeline Incremental Refresh
+        - task_key: Refresh_Spec_Doc_Ingest_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh
+              outcome: "false"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_specification_document_parsing.id}
+            full_refresh: false
         
       ##############################
       # Primary ETL Pipeline Control
