@@ -140,7 +140,7 @@ resources:
         # Spec Doc Ingestion Pipeline Full Refresh
         - task_key: Full_Refresh_Spec_Doc_Ingest_Pipeline
           depends_on:
-            - task_key: Trigger_Full_Refresh
+            - task_key: Trigger_Full_Refresh_Specification_Pipeline
               outcome: "true"
           pipeline_task:
             pipeline_id: ${resources.pipelines.ncpdp_specification_document_parsing.id}
@@ -149,7 +149,7 @@ resources:
         # Spec Doc Ingestion Pipeline Incremental Refresh
         - task_key: Refresh_Spec_Doc_Ingest_Pipeline
           depends_on:
-            - task_key: Trigger_Full_Refresh
+            - task_key: Trigger_Full_Refresh_Specification_Pipeline
               outcome: "false"
           pipeline_task:
             pipeline_id: ${resources.pipelines.ncpdp_specification_document_parsing.id}
