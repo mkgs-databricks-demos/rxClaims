@@ -162,9 +162,11 @@ resources:
             - task_key: Full_Refresh_Spec_Doc_Ingest_Pipeline
           run_if: AT_LEAST_ONE_SUCCESS
           sql_task:
-            file:
-              path: ../src/ncpdp_specifications/ai_parse_document/parse_documents_v2.dbquery.ipynb
-              source: WORKSPACE
+            # file:
+            #   path: ../src/ncpdp_specifications/ai_parse_document/parse_documents_v2.dbquery.ipynb
+            #   source: WORKSPACE
+            query:
+              query_id: db4749c0-e785-4262-af3d-45e5b16c4b8b
             warehouse_id: ${resources.sql_warehouses.ncpdp_sql_warehouse.id}
             parameters: 
               destinationTableName: "specification_documents_parsed"
