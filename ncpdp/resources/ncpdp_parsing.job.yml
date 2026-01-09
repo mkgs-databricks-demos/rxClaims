@@ -167,10 +167,10 @@ resources:
               source: WORKSPACE
             warehouse_id: ${resources.sql_warehouses.ncpdp_sql_warehouse.id}
             parameters: 
-              destinationTableName: "{{job.parameters.catalog_use}}.{{job.parameters.schema_use}}.specification_documents_parsed"
+              destinationTableName: "specification_documents_parsed"
               limit: "100"
               partitionCount: "4"
-              sourceTableName: "{{job.parameters.catalog_use}}.{{job.parameters.schema_use}}.specification_documents"
+              sourceTableName: "specification_documents"
 
         
       ##############################
