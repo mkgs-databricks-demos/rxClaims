@@ -154,6 +154,24 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.ncpdp_specification_document_parsing.id}
             full_refresh: false
+
+        # Temp: Use a SQL Notebook for ai_parse_document (not available in current/preview channels of LSDP runtime at time of authoring)
+        - task_key: temp_ai_parse_document_sql
+          depends_on:
+            - task_key: Refresh_Spec_Doc_Ingest_Pipeline
+            - task_key: Full_Refresh_Spec_Doc_Ingest_Pipeline
+          run_if: AT_LEAST_ONE_SUCCESS
+          sql_task:
+            file:
+              path: ../src/ncpdp_specifications/ai_parse_document/parse_documents_v2.dbquery.ipynb
+              source: WORKSPACE
+            warehouse_id: ${resources.sql_warehouses.ncpdp_sql_warehouse.id}
+            parameters: 
+              destinationTableName: "{{job.parameters.catalog_use}}.{{job.parameters.schema_use}}.specification_documents_parsed"
+              limit: "100"
+              partitionCount: "4"
+              sourceTableName: "{{job.parameters.catalog_use}}.{{job.parameters.schema_use}}.specification_documents"
+
         
       ##############################
       # Primary ETL Pipeline Control
