@@ -11,4 +11,3 @@ resources:
       enable_photon: true
       channel:
         name: CHANNEL_NAME_PREVIEW
-      creator_name: ${var.run_as_user}
