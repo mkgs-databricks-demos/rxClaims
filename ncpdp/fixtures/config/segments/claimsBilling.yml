@@ -1,5 +1,5 @@
 # NCPDP Claims Billing Segments Status and Rules
-
+type: ClaimBilling
 segments:
   - name: Transaction Header Segment
     segment_id: AM01

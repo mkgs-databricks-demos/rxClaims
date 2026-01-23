@@ -40,13 +40,40 @@ default_table_properties = {
 }
 
 class Segments:
-    def __init__(self, spark: SparkSession, catalog: str, schema: str,  file_type: str, table_properties: dict = default_table_properties):
+    def __init__(self, spark: SparkSession, catalog: str, schema: str,  file_type: str, segment_rules : dict, table_properties: dict = default_table_properties):
         self.spark = spark
         self.catalog = catalog 
         self.schema = schema
         self.file_type = file_type
         self.table_properties = table_properties.copy()
+        self.segment_rules = segment_rules
         self.table_properties['quality'] = 'bronze'
+        self.view_types = ["requests", "responses", "supplemental"]
 
     def set_up_source_views(self):
+        @dp.view(
+            name = f"v_{self.file_type}_bronze_requests"
+        )
+        def bronze_view():
+            return self.spark.readStream.table(f"{self.catalog}.{self.schema}.{self.file_type}_bronze_requests")
         
+        @dp.view(
+            name = f"v_{self.file_type}_bronze_responses"
+        )
+        def bronze_view():
+            return self.spark.readStream.table(f"{self.catalog}.{self.schema}.{self.file_type}_bronze_responses")
+        
+        @dp.view(
+            name = f"v_{self.file_type}_bronze_supplemental"
+        )
+        def bronze_view():
+            return self.spark.readStream.table(f"{self.catalog}.{self.schema}.{self.file_type}_bronze_supplemental")
+            
+    def review_segments(self):
+        @dp.table(
+            name = f"{self.catalog}.{self.schema}.{self.file_type}_request_segments"
+            ,table_properties=self.table_properties
+            ,cluster_by_auto=True
+        )
+        def segments():
+            return self.spark.readStream.table(f"v_{self.file_type}_bronze_requests")
