@@ -48,6 +48,19 @@ resources:
           depends_on: 
             - task_key: Run_Set_Up
               outcome: "true"
+          notebook_task:
+            notebook_path: ../src/vector_search/00-enable-vector-search-endpoints.ipynb
+            source: WORKSPACE
+            base_parameters:
+              workspace_url: "${workspace.host}"
+              sp_secret_scope: "${resources.secret_scopes.ncpdp_vs_sp.name}"
+              sp_secret_key_client_id: "client_id"
+              sp_secret_key_secret: "secret"
+          max_retries: 3
+          min_retry_interval_millis: 60000
+          retry_on_timeout: true
+          disable_auto_optimization: false
+          environment_key: primary
         
         # Creates the required subdirectories in the volumes for each ncpdp file type
         - task_key: Create_Sub_Directories
