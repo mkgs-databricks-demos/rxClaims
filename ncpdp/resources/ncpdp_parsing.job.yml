@@ -60,7 +60,7 @@ resources:
           min_retry_interval_millis: 60000
           retry_on_timeout: true
           disable_auto_optimization: false
-          environment_key: primary
+          environment_key: vector_search
         
         # Creates the required subdirectories in the volumes for each ncpdp file type
         - task_key: Create_Sub_Directories
@@ -234,3 +234,7 @@ resources:
         - environment_key: primary
           spec:
             environment_version: ${var.serverless_environment_version}
+        - environment_key: vector_search
+          spec:
+            environment_version: ${var.serverless_environment_version}
+            dependencies: databricks-vectorsearch
