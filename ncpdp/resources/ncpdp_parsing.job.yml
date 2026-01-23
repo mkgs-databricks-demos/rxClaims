@@ -237,4 +237,4 @@ resources:
         - environment_key: vector_search
           spec:
             environment_version: ${var.serverless_environment_version}
-            dependencies: databricks-vectorsearch
+            dependencies: [databricks-vectorsearch]
