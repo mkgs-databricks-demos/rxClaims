@@ -43,6 +43,11 @@ resources:
             op: EQUAL_TO
             left: "{{job.parameters.run_set_up}}"
             right: "true"
+
+        - task_key: Enable_Vector_Search_Endpoints
+          depends_on: 
+            - task_key: Run_Set_Up
+              outcome: "true"
         
         # Creates the required subdirectories in the volumes for each ncpdp file type
         - task_key: Create_Sub_Directories
