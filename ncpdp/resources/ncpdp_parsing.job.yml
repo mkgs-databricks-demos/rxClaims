@@ -192,12 +192,12 @@ resources:
               partitionCount: "4"
               sourceTableName: "specification_documents"
 
-        - task_key: Create_or_Sync_Vector_Search_Index
+        - task_key: Create_or_Sync_Vector_Search_Index_Initial
           depends_on: 
             - task_key: Ensure_Vector_Search_Endpoints
             - task_key: temp_ai_parse_document_sql
           notebook_task:
-            notebook_path: ../src/vector_search/00-enable-vector-search-endpoints.ipynb
+            notebook_path: ../src/vector_search/01-create-vector-index.ipynb
             source: WORKSPACE
             base_parameters:
               workspace_url: "${workspace.host}"
