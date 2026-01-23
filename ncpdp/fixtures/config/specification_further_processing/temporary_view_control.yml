@@ -1,0 +1,216 @@
+document_parsing_sql:
+  # Step 1: Create a temporary view of the raw document with line numbers
+  - description: "create_line_numbered_view"
+    name: document_with_lines
+    sql: >
+      SELECT
+        path, 
+        ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS line_number,
+        TRIM(line) AS line_text
+      FROM (
+        SELECT EXPLODE(SPLIT(text, '\n')) AS line
+        FROM tv_source
+      );
+
+  # Step 2: Identify section and subsection headers based on numbering patterns
+  - description: "identify_section_headers"
+    name: section_headers
+    sql: >
+      SELECT
+        line_number,
+        line_text,
+        REGEXP_EXTRACT(line_text, '^(\\d+(\\.\\d+)*)\\s+', 1) AS section_number,
+        REGEXP_EXTRACT(line_text, '^\\d+(\\.\\d+)*\\s+(.+)$', 2) AS section_title,
+        LENGTH(REGEXP_EXTRACT(line_text, '^(\\d+(\\.\\d+)*)\\s+', 1)) - LENGTH(REPLACE(REGEXP_EXTRACT(line_text, '^(\\d+(\\.\\d+)*)\\s+', 1), '.', '')) AS section_level
+      FROM document_with_lines
+      WHERE REGEXP_EXTRACT(line_text, '^(\\d+(\\.\\d+)*)\\s+', 1) IS NOT NULL
+      ORDER BY line_number;
+
+  # Step 3: Determine section boundaries by finding the start and end line for each section
+  - description: "determine_section_boundaries"
+    name: section_boundaries
+    sql: >
+      SELECT
+        s1.line_number AS start_line,
+          COALESCE(MIN(s2.line_number) - 1, 
+                  (SELECT MAX(line_number) FROM document_with_lines)) AS end_line,
+          s1.section_number,
+          s1.section_title,
+          s1.section_level
+        FROM section_headers s1
+        LEFT JOIN section_headers s2
+        ON s1.line_number < s2.line_number
+          AND (s1.section_level >= s2.section_level 
+                OR (s1.section_level = 1 AND s2.section_level = 1))
+        GROUP BY s1.line_number, s1.section_number, s1.section_title, s1.section_level
+        ORDER BY s1.line_number;
+
+  # Step 4: Extract the content for each section by joining with the line-numbered document
+  - description: "extract_section_content"
+    name: section_content
+    sql: >
+      SELECT
+        sb.section_number,
+        sb.section_title,
+        sb.section_level,
+        CONCAT_WS('\n', COLLECT_LIST(dl.line_text)) AS content
+      FROM section_boundaries sb
+      JOIN document_with_lines dl
+      ON dl.line_number >= sb.start_line AND dl.line_number <= sb.end_line
+      GROUP BY sb.section_number, sb.section_title, sb.section_level, sb.start_line
+      ORDER BY sb.start_line;
+
+  # Step 5: Create a hierarchical structure of sections and subsections
+  - description: "create_hierarchical_sections"
+    name: hierarchical_sections
+    sql: >
+      WITH section_hierarchy AS (
+        SELECT
+          section_number,
+          section_title,
+          section_level,
+          content,
+          CASE 
+            WHEN section_level = 1 THEN section_number
+            WHEN section_level = 2 THEN SUBSTRING_INDEX(section_number, '.', 1)
+            WHEN section_level = 3 THEN SUBSTRING_INDEX(section_number, '.', 2)
+            WHEN section_level = 4 THEN SUBSTRING_INDEX(section_number, '.', 3)
+            ELSE NULL
+          END AS parent_section_number
+        FROM section_content
+      )
+      SELECT
+        h.section_number,
+        h.section_title,
+        h.section_level,
+        h.content,
+        p1.section_title AS parent_section_title,
+        CASE
+          WHEN h.section_level = 1 THEN NULL
+          WHEN h.section_level = 2 THEN p1.section_number
+          WHEN h.section_level = 3 THEN p2.section_number
+          WHEN h.section_level = 4 THEN p3.section_number
+          ELSE NULL
+        END AS parent_section_number
+      FROM section_hierarchy h
+      LEFT JOIN section_hierarchy p1 ON h.parent_section_number = p1.section_number AND p1.section_level = h.section_level - 1
+      LEFT JOIN section_hierarchy p2 ON SUBSTRING_INDEX(h.parent_section_number, '.', 1) = p2.section_number AND p2.section_level = 1
+      LEFT JOIN section_hierarchy p3 ON SUBSTRING_INDEX(h.parent_section_number, '.', 2) = p3.section_number AND p3.section_level = 2
+      ORDER BY h.section_number;
+
+  # Step 6: Final output table with parsed sections and metadata
+  - description: "create_parsed_sections_table"
+    name: parsed_document_sections
+    sql: >
+      SELECT
+        section_number,
+        section_title,
+        section_level,
+        CASE
+          WHEN section_level = 1 THEN 'MAIN_SECTION'
+          WHEN section_level = 2 THEN 'SUBSECTION'
+          WHEN section_level = 3 THEN 'SUB_SUBSECTION'
+          WHEN section_level = 4 THEN 'SUB_SUB_SUBSECTION'
+          ELSE 'UNKNOWN'
+        END AS section_type,
+        parent_section_number,
+        parent_section_title,
+        -- Extract the first paragraph as a summary
+        REGEXP_EXTRACT(content, '^[^\\n]+(\\n[^\\n]+)?', 0) AS section_summary,
+        -- Check if section contains tables
+        CASE WHEN content LIKE '%|%|%' OR content LIKE '%+---+%' THEN TRUE ELSE FALSE END AS contains_tables,
+        -- Check if section contains field definitions
+        CASE WHEN content RLIKE '\\d+-[A-Z]{2}' THEN TRUE ELSE FALSE END AS contains_field_definitions,
+        -- Check if section contains examples
+        CASE WHEN UPPER(section_title) LIKE '%EXAMPLE%' OR content LIKE '%Example:%' THEN TRUE ELSE FALSE END AS contains_examples,
+        -- Check if section contains requirements
+        CASE WHEN content LIKE '%Required%' OR content LIKE '%Mandatory%' OR content LIKE '%Situational%' THEN TRUE ELSE FALSE END AS contains_requirements,
+        -- Store the full content
+        content AS section_content
+      FROM hierarchical_sections
+      ORDER BY section_number;
+
+  # Step 7: Extract tables from sections
+  - description: "extract_tables_from_sections"
+    name: parsed_document_tables
+    sql: >
+      WITH table_sections AS (
+        SELECT
+          section_number,
+          section_title,
+          REGEXP_EXTRACT_ALL(section_content, '(\\+[-]+\\+[\\s\\S]+?\\+[-]+\\+)') AS table_texts
+        FROM parsed_document_sections
+        WHERE contains_tables = TRUE
+      )
+      SELECT
+        section_number,
+        section_title,
+        pos AS table_index_in_section,
+        CONCAT(section_number, '.', pos) AS table_id,
+        table_text
+      FROM (
+        SELECT
+          section_number,
+          section_title,
+          POSEXPLODE(table_texts) AS (pos, table_text)
+        FROM table_sections
+      )
+      ORDER BY section_number, pos;
+
+  # Step 8: Extract field definitions
+  - description: "extract_field_definitions"
+    name: parsed_field_definitions
+    sql: >
+      SELECT
+        section_number,
+        REGEXP_EXTRACT(line, '(\\d+-[A-Z]{2})\\s+', 1) AS field_id,
+        REGEXP_EXTRACT(line, '\\d+-[A-Z]{2}\\s+([^\\t\\n]+)', 1) AS field_name,
+        REGEXP_EXTRACT(line, '([MRO])\\s', 1) AS usage_code,
+        REGEXP_EXTRACT(line, 'Imp Guide:\\s*([^\\n]+)', 1) AS implementation_guide,
+        REGEXP_EXTRACT(line, 'Payer Requirement:\\s*([^\\n]+)', 1) AS payer_requirement
+      FROM (
+        SELECT
+          section_number,
+          EXPLODE(SPLIT(section_content, '\n')) AS line
+        FROM parsed_document_sections
+        WHERE contains_field_definitions = TRUE
+      )
+      WHERE REGEXP_EXTRACT(line, '(\\d+-[A-Z]{2})\\s+', 1) IS NOT NULL
+      ORDER BY section_number, field_id;
+
+  # Step 9: Create a consolidated view of all parsed information
+  - description: "create_consolidated_view"
+    name: document_structure
+    sql: >
+      SELECT
+        s.section_number,
+        s.section_title,
+        s.section_level,
+        s.section_type,
+        s.parent_section_number,
+        s.parent_section_title,
+        s.section_summary,
+        s.contains_tables,
+        s.contains_field_definitions,
+        s.contains_examples,
+        s.contains_requirements,
+        COUNT(DISTINCT t.table_id) AS table_count,
+        COUNT(DISTINCT f.field_id) AS field_definition_count,
+        s.section_content
+      FROM parsed_document_sections s
+      LEFT JOIN parsed_document_tables t ON s.section_number = t.section_number
+      LEFT JOIN parsed_field_definitions f ON s.section_number = f.section_number
+      GROUP BY
+        s.section_number,
+        s.section_title,
+        s.section_level,
+        s.section_type,
+        s.parent_section_number,
+        s.parent_section_title,
+        s.section_summary,
+        s.contains_tables,
+        s.contains_field_definitions,
+        s.contains_examples,
+        s.contains_requirements,
+        s.section_content
+      ORDER BY s.section_number;

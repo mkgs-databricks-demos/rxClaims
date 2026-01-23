@@ -1,20 +1,23 @@
 resources:
   pipelines:
-    specification_further_processing:
-      name: NCPDP Specification Further Processing ETL
+    ncpdp_segments_etl:
+      name: ncpdp_segments_etl
       libraries:
         - glob:
-            include: ../src/specification_further_processing/transformations/**
+            include: ../src/ncpdp_segments_etl/transformations/**
       serverless: true
-      channel: PREVIEW
       catalog: ${var.catalog}
       schema: ${resources.schemas.ncpdp_schema.name}
+      root_path: ../src/ncpdp_segments_etl
       configuration:
         catalog_use: ${var.catalog}
+        file_types: ClaimBilling
         schema_use: ${resources.schemas.ncpdp_schema.name}
-      root_path: ../src/specification_further_processing
+      development: true
+      edition: ADVANCED
+      channel: PREVIEW
       event_log:
-        name: event_log_specification_further_processing
+        name: event_log_ncpdp_segments_etl
         schema: ${var.event_log_schema}
         catalog: ${var.event_log_catalog}
       tags:
@@ -25,3 +28,6 @@ resources:
         developer: ${var.tags_developer}
         RemoveAfter: ${var.tags_RemoveAfter}
         env: ${bundle.target}
+      environment:
+        dependencies:
+          - pyyaml

@@ -1,0 +1,107 @@
+# NCPDP Claims Billing Segments Status and Rules
+
+segments:
+  - name: Transaction Header Segment
+    segment_id: AM01
+    status: Mandatory
+    rules: "This segment is always sent in every transaction."
+    sql_filter: "segment_id = 'AM01'"
+    
+  - name: Insurance Segment
+    segment_id: AM04
+    status: Mandatory
+    rules: "This segment is always sent in every transaction."
+    sql_filter: "segment_id = 'AM04'"
+    
+  - name: Patient Segment
+    segment_id: AM02
+    status: Mandatory
+    rules: "This segment is always sent in every transaction."
+    sql_filter: "segment_id = 'AM02'"
+    
+  - name: Claim Segment
+    segment_id: AM07
+    status: Mandatory
+    rules: "This segment is always sent in every transaction."
+    sql_filter: "segment_id = 'AM07'"
+    
+  - name: Prescriber Segment
+    segment_id: AM03
+    status: Situational
+    rules: "Required when the claim needs prescriber information. Payer may specify if this segment is always required or only in specific situations."
+    sql_filter: "segment_id = 'AM03' AND (payer_requires_prescriber = TRUE OR prescription_type REQUIRES prescriber_information)"
+    
+  - name: Coordination of Benefits/Other Payments Segment
+    segment_id: AM05
+    status: Situational
+    rules: "Required when the claim is being submitted to a secondary or supplemental payer. Must be sent when the payer is always secondary/supplemental. For payers that are sometimes secondary/supplemental, the segment is situational."
+    sql_filter: "segment_id = 'AM05' AND (payer_type = 'SECONDARY' OR payer_type = 'SUPPLEMENTAL' OR other_coverage_code IN ('2', '3', '4', '8'))"
+    
+  - name: Workers' Compensation Segment
+    segment_id: AM06
+    status: Situational
+    rules: "Required for Workers' Compensation claims. Not used for non-Workers' Compensation claims."
+    sql_filter: "segment_id = 'AM06' AND claim_type = 'WORKERS_COMPENSATION'"
+    
+  - name: DUR/PPS Segment
+    segment_id: AM08
+    status: Situational
+    rules: "Required when DUR/PPS information needs to be communicated."
+    sql_filter: "segment_id = 'AM08' AND dur_pps_information_present = TRUE"
+    
+  - name: Coupon Segment
+    segment_id: AM09
+    status: Situational
+    rules: "Required for coupon claims. Not used for non-coupon claims."
+    sql_filter: "segment_id = 'AM09' AND claim_type = 'COUPON'"
+    
+  - name: Compound Segment
+    segment_id: AM10
+    status: Situational
+    rules: "Required when the prescription is for a compound medication."
+    sql_filter: "segment_id = 'AM10' AND compound_code = '2'"
+    
+  - name: Pricing Segment
+    segment_id: AM11
+    status: Situational
+    rules: "Required when pricing information needs to be communicated."
+    sql_filter: "segment_id = 'AM11' AND pricing_information_required = TRUE"
+    
+  - name: Prior Authorization Segment
+    segment_id: AM20
+    status: Situational
+    rules: "Required when prior authorization information needs to be communicated."
+    sql_filter: "segment_id = 'AM20' AND prior_auth_information_present = TRUE"
+    
+  - name: Clinical Segment
+    segment_id: AM21
+    status: Situational
+    rules: "Required when clinical information needs to be communicated."
+    sql_filter: "segment_id = 'AM21' AND clinical_information_present = TRUE"
+
+segment_status_filters:
+  - name: "All Mandatory Segments"
+    sql_filter: "segment_id IN ('AM01', 'AM04', 'AM02', 'AM07')"
+    
+  - name: "All Situational Segments"
+    sql_filter: "segment_id IN ('AM03', 'AM05', 'AM06', 'AM08', 'AM09', 'AM10', 'AM11', 'AM20', 'AM21')"
+    
+  - name: "Secondary/Supplemental Claims"
+    sql_filter: "segment_id = 'AM05' AND (payer_type IN ('SECONDARY', 'SUPPLEMENTAL') OR other_coverage_code IN ('2', '3', '4', '8'))"
+    
+  - name: "Workers' Compensation Claims"
+    sql_filter: "segment_id = 'AM06' AND claim_type = 'WORKERS_COMPENSATION'"
+    
+  - name: "Compound Claims"
+    sql_filter: "segment_id = 'AM10' AND compound_code = '2'"
+
+notes:
+  - "Segment Identification (112-AM) fields are part of the underlying structure of the transaction but are not shown in payer sheets as they are covered in the implementation guide."
+  - "Mandatory segments must always be included in the transaction."
+  - "Situational segments are only required when specific conditions are met as defined in the implementation guide or by payer requirements."
+  - "If a situational segment is used by a payer, they must specify whether it is 'always sent' or 'situational' with appropriate rules."
+  - "For segments marked as 'always sent', they are used in every transaction associated with that payer's template."
+  - "For segments marked as 'situational', the payer must provide guidance on when the segment is used."
+  - "Payers may require different segments based on plan types, which would necessitate separate payer sheets."
+  - "SQL filters are provided as examples and may need to be adjusted based on the specific database schema and field names in implementation."
+  - "The SQL filters assume the existence of appropriate tables and fields that match the NCPDP standard requirements."
