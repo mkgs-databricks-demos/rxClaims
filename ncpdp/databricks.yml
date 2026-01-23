@@ -29,6 +29,9 @@ variables:
   spec_documents_parsed_image_output_sub_path:
     description: The optional sub path of the volume where the parsed image output should be saved when running ai_parse_document version 2, if applicable, with no slash to start and no trailing slash.  E.g. dir1/dir2/dir3
     default: ""
+  embedding_model:
+    description: The embedding model to use for the vector search indexes.
+    default: databricks-gte-large-en
   event_log_catalog:
     description: The catalog to publish the ETL Pipeline's event log.
   event_log_schema:
