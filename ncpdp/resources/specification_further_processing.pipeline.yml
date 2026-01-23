@@ -1,0 +1,27 @@
+resources:
+  pipelines:
+    specification_further_processing:
+      name: NCPDP Specification Document Parsing ETL
+      libraries:
+        - glob:
+            include: ../src/specification_further_processing/transformations/**
+      serverless: true
+      channel: PREVIEW
+      catalog: ${var.catalog_use}
+      schema: ${resources.schemas.ncpdp_schema.name}
+      configuration:
+        catalog_use: ${var.catalog_use}
+        schema_use: ${resources.schemas.ncpdp_schema.name}
+      root_path: ../src/specification_further_processing
+      event_log:
+        name: event_log_specification_further_processing
+        schema: ${var.event_log_schema}
+        catalog: ${var.event_log_catalog}
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
