@@ -22,7 +22,7 @@ for file_type in file_types:
         ,catalog = spark.conf.get("catalog_use")
         ,schema = spark.conf.get("schema_use")
         ,file_type = file_type
-        ,segment_rules = [r for r in segment_rules if r["type"] == "ClaimBilling"][0]
+        ,segment_rules = [r for r in segment_rules if r["type"] == file_type][0]
     )
 
     SegmentsPipeline.set_up_source_views()
