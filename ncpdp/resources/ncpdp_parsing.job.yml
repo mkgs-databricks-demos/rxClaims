@@ -110,24 +110,6 @@ resources:
             left: "{{job.parameters.run_spec_process}}"
             right: "true"
 
-        - task_key: Ensure_Vector_Search_Endpoints
-          depends_on: 
-            - task_key: Parse_Specification_Documents
-              outcome: "true"
-          notebook_task:
-            notebook_path: ../src/vector_search/00-enable-vector-search-endpoints.ipynb
-            source: WORKSPACE
-            base_parameters:
-              workspace_url: "${workspace.host}"
-              sp_secret_scope: "${resources.secret_scopes.ncpdp_vs_sp.name}"
-              sp_secret_key_client_id: "client_id"
-              sp_secret_key_secret: "secret"
-          max_retries: 3
-          min_retry_interval_millis: 60000
-          retry_on_timeout: true
-          disable_auto_optimization: false
-          environment_key: vector_search
-        
         # Download the Specification Document from the Public Internet (note that serverless egress controls must allow for this download)
         - task_key: Download_Spec_Doc
           depends_on:
@@ -173,29 +155,6 @@ resources:
             pipeline_id: ${resources.pipelines.ncpdp_document_intelligence.id}
             full_refresh: false
 
-        - task_key: Create_or_Sync_Vector_Search_Index_Initial
-          depends_on: 
-            - task_key: Ensure_Vector_Search_Endpoints
-            - task_key: Full_Refresh_Document_Intelligence_Pipeline
-            - task_key: Refresh_Document_Intelligence_Pipeline
-          run_if: AT_LEAST_ONE_SUCCESS
-          notebook_task:
-            notebook_path: ../src/vector_search/01-create-vector-index.ipynb
-            source: WORKSPACE
-            base_parameters:
-              workspace_url: "${workspace.host}"
-              sp_secret_scope: "${resources.secret_scopes.ncpdp_vs_sp.name}"
-              sp_secret_key_client_id: "client_id"
-              sp_secret_key_secret: "secret"
-              vector_search_endpoint: ncpdp-specifications-vs-endpoint
-              embedding_model: ${var.embedding_model}
-              source_table: "specification_search_chunks"
-          max_retries: 3
-          min_retry_interval_millis: 60000
-          retry_on_timeout: true
-          disable_auto_optimization: false
-          environment_key: vector_search
-
         
       ##############################
       # Primary ETL Pipeline Control
@@ -238,7 +197,3 @@ resources:
         - environment_key: primary
           spec:
             environment_version: ${var.serverless_environment_version}
-        - environment_key: vector_search
-          spec:
-            environment_version: ${var.serverless_environment_version}
-            dependencies: [databricks-vectorsearch]
