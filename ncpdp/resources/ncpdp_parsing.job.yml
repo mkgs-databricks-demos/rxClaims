@@ -155,47 +155,30 @@ resources:
             left: "{{job.parameters.pipeline_full_refresh}}"
             right: "true"
 
-        # Spec Doc Ingestion Pipeline Full Refresh
-        - task_key: Full_Refresh_Spec_Doc_Ingest_Pipeline
+        # Document Intelligence Pipeline Full Refresh
+        - task_key: Full_Refresh_Document_Intelligence_Pipeline
           depends_on:
             - task_key: Trigger_Full_Refresh_Specification_Pipeline
               outcome: "true"
           pipeline_task:
-            pipeline_id: ${resources.pipelines.ncpdp_specification_document_parsing.id}
+            pipeline_id: ${resources.pipelines.ncpdp_document_intelligence.id}
             full_refresh: true
             
-        # Spec Doc Ingestion Pipeline Incremental Refresh
-        - task_key: Refresh_Spec_Doc_Ingest_Pipeline
+        # Document Intelligence Pipeline Incremental Refresh
+        - task_key: Refresh_Document_Intelligence_Pipeline
           depends_on:
             - task_key: Trigger_Full_Refresh_Specification_Pipeline
               outcome: "false"
           pipeline_task:
-            pipeline_id: ${resources.pipelines.ncpdp_specification_document_parsing.id}
+            pipeline_id: ${resources.pipelines.ncpdp_document_intelligence.id}
             full_refresh: false
-
-        # Temp: Use a SQL Notebook for ai_parse_document (not available in current/preview channels of LSDP runtime at time of authoring)
-        - task_key: temp_ai_parse_document_sql
-          depends_on:
-            - task_key: Refresh_Spec_Doc_Ingest_Pipeline
-            - task_key: Full_Refresh_Spec_Doc_Ingest_Pipeline
-          run_if: AT_LEAST_ONE_SUCCESS
-          sql_task:
-            # file:
-            #   path: ../src/ncpdp_specifications/ai_parse_document/parse_documents_v2.dbquery.ipynb
-            #   source: WORKSPACE
-            query:
-              query_id: db4749c0-e785-4262-af3d-45e5b16c4b8b
-            warehouse_id: ${resources.sql_warehouses.ncpdp_sql_warehouse.id}
-            parameters: 
-              destinationTableName: "specification_documents_parsed"
-              limit: "100"
-              partitionCount: "4"
-              sourceTableName: "specification_documents"
 
         - task_key: Create_or_Sync_Vector_Search_Index_Initial
           depends_on: 
             - task_key: Ensure_Vector_Search_Endpoints
-            - task_key: temp_ai_parse_document_sql
+            - task_key: Full_Refresh_Document_Intelligence_Pipeline
+            - task_key: Refresh_Document_Intelligence_Pipeline
+          run_if: AT_LEAST_ONE_SUCCESS
           notebook_task:
             notebook_path: ../src/vector_search/01-create-vector-index.ipynb
             source: WORKSPACE
@@ -206,7 +189,7 @@ resources:
               sp_secret_key_secret: "secret"
               vector_search_endpoint: ncpdp-specifications-vs-endpoint
               embedding_model: ${var.embedding_model}
-              source_table: "specification_documents_parsed"
+              source_table: "specification_search_chunks"
           max_retries: 3
           min_retry_interval_millis: 60000
           retry_on_timeout: true

@@ -31,11 +31,6 @@ from pyspark.pipelines.testing import TestPipeline, test_spark
 
 test_pipeline = TestPipeline.active()
 
-# Pipeline config vars (resolved from pipeline settings at test time)
-# These match the pipeline YAML: catalog_use, schema_use
-# CATALOG = spark.conf.get("catalog_use")
-# SCHEMA = spark.conf.get("schema_use")
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Test Fixtures — Minimal valid binary content for ai_parse_document
@@ -47,21 +42,37 @@ test_pipeline = TestPipeline.active()
 MINIMAL_PDF_TEXT = "NCPDP Telecommunication Standard Implementation Guide Version D.0 Segment AM01 Patient Request"
 
 
-# def _fqn(table_suffix: str) -> str:
-#     """Fully qualified table name using pipeline config."""
-#     return f"{CATALOG}.{SCHEMA}.{table_suffix}"
+# Pipeline's configuration values — must match the pipeline YAML.
+# TestPipeline does NOT automatically propagate pipeline 'configuration' vars
+# to the Spark session, so we set them explicitly via fixture.
+_PIPELINE_CATALOG = "ncpdp_dev"
+_PIPELINE_SCHEMA = "dev_matthew_giglia_rx_claims"
+_PIPELINE_VOLUME = "spec_documents"
+_PIPELINE_VOLUME_SUB_PATH = "raw"
+_PIPELINE_IMAGE_OUTPUT_SUB_PATH = "parsed_image_output"
+
+
+@pytest.fixture(autouse=True)
+def set_pipeline_configs(test_spark):
+    """Set pipeline configuration vars that the pipeline code expects via spark.conf.get().
+
+    The TestPipeline framework does not automatically propagate the pipeline's
+    'configuration' map to the Spark session used during test execution.
+    """
+    test_spark.conf.set("catalog_use", _PIPELINE_CATALOG)
+    test_spark.conf.set("schema_use", _PIPELINE_SCHEMA)
+    test_spark.conf.set("volume_use", _PIPELINE_VOLUME)
+    test_spark.conf.set("volume_sub_path_use", _PIPELINE_VOLUME_SUB_PATH)
+    test_spark.conf.set("image_output_sub_path_use", _PIPELINE_IMAGE_OUTPUT_SUB_PATH)
+
 
 def _fqn(table_suffix: str) -> str:
-    """Fully qualified table name using pipeline config.
+    """Fully qualified table name matching the pipeline's published datasets.
 
-    Resolves at call time (inside tests), not at import time,
-    so test discovery doesn't fail when spark isn't yet available.
+    Per Databricks docs, TestPipeline isolation is by table name (FQN).
+    Mock creation, test_pipeline.run(), and result reads all use the same FQN.
     """
-    from pyspark.sql import SparkSession
-    s = SparkSession.getActiveSession()
-    catalog = s.conf.get("catalog_use")
-    schema = s.conf.get("schema_use")
-    return f"{catalog}.{schema}.{table_suffix}"
+    return f"{_PIPELINE_CATALOG}.{_PIPELINE_SCHEMA}.{table_suffix}"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Mock Setup Functions
@@ -162,6 +173,54 @@ def mock_specification_documents_parsed(session, text: str = MINIMAL_PDF_TEXT):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+class TestDiagnostics:
+    """Diagnostic tests to verify TestPipeline framework basics."""
+
+    def test_mock_table_roundtrip(self, test_spark):
+        """Verify that mock table creation and reading works via test_spark."""
+        test_spark.sql(f"""
+            CREATE OR REPLACE TABLE {_fqn('_test_diagnostic')} AS
+            SELECT 1 as id, 'hello' as value
+        """)
+        result = test_spark.table(_fqn('_test_diagnostic'))
+        assert result.count() == 1, "Mock table roundtrip failed"
+
+    def test_pipeline_config_available(self, test_spark):
+        """Check if pipeline configuration vars are accessible."""
+        # Try to get config the same way the pipeline code does
+        from pyspark.sql import SparkSession
+        s = SparkSession.getActiveSession()
+        configs = {}
+        for key in ['catalog_use', 'schema_use', 'volume_use', 'volume_sub_path_use']:
+            try:
+                configs[key] = s.conf.get(key)
+            except Exception as e:
+                configs[key] = f"NOT SET ({type(e).__name__})"
+        # Also check current catalog/database
+        configs['current_catalog'] = test_spark.sql("SELECT current_catalog()").collect()[0][0]
+        configs['current_database'] = test_spark.sql("SELECT current_database()").collect()[0][0]
+        # Report findings as assertion message
+        info = "\n".join(f"  {k}: {v}" for k, v in configs.items())
+        # This test always passes but reports the config state
+        assert True, f"Pipeline configs:\n{info}"
+        print(f"Pipeline configs:\n{info}")
+
+    def test_pipeline_run_minimal(self, test_spark):
+        """Run the first pipeline table and check status details."""
+        # Mock the auto-loader source table
+        mock_specification_documents_with_text(test_spark)
+
+        status = test_pipeline.run(
+            test_spark,
+            {_fqn("specification_documents_parsed")},
+        )
+        # Report ALL status attributes
+        attrs = {attr: getattr(status, attr, 'N/A') for attr in dir(status)
+                 if not attr.startswith('_')}
+        info = "\n".join(f"  {k}: {v}" for k, v in attrs.items())
+        assert status.is_success, f"Pipeline failed. Status attrs:\n{info}"
+
+
 class TestFullChainWithBinary:
     """End-to-end pipeline wiring test using a minimal PDF.
 
@@ -179,6 +238,26 @@ class TestFullChainWithBinary:
             test_spark,
             {_fqn("specification_documents_parsed")},
         )
+
+        # Debug: check pipeline execution status and event log on failure
+        assert status is not None, "test_pipeline.run() returned None"
+        if hasattr(status, 'is_success') and not status.is_success:
+            error_details = "Pipeline run failed."
+            if hasattr(status, 'event_log_table_name') and status.event_log_table_name:
+                try:
+                    errors = test_spark.sql(f"""
+                        SELECT timestamp, level, message
+                        FROM `{status.event_log_table_name}`
+                        WHERE level = 'ERROR'
+                        ORDER BY timestamp DESC
+                        LIMIT 5
+                    """).collect()
+                    error_details += "\n" + "\n".join(
+                        f"  [{r['level']}] {r['message'][:200]}" for r in errors
+                    )
+                except Exception as e:
+                    error_details += f"\nCould not read event log: {e}"
+            pytest.fail(error_details)
 
         result = test_spark.table(_fqn("specification_documents_parsed"))
         assert result.count() >= 1, (
