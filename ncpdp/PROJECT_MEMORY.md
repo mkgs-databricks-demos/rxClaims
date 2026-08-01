@@ -41,6 +41,40 @@ Replaces both the old `ncpdp_specification_document_parsing` pipeline AND the `s
 
 Source: `src/ncpdp_document_intelligence/`
 
+## Latest Validated Run (2026-08-01)
+
+**Run ID:** `752978541164333` | **Job ID:** `343795472366843` | **Duration:** 10.5 min | **Result:** SUCCESS
+
+**Parameters:** `run_set_up=true`, `pipeline_full_refresh=true`, `run_spec_process=true`, `deployment_mode=development`
+
+All 11 active tasks passed (2 EXCLUDED = incremental refresh paths correctly skipped).
+
+### Data Quality Summary
+
+#### ETL Pipeline
+
+| Table | Rows | Notes |
+| --- | --- | --- |
+| `claimbilling_bronze` | 3 | 3 XML files (3KB–13KB), all with `transaction_file_source_id` |
+| `claimbilling_bronze_variant` | 3 | 1:1 with bronze, fully parsed to VARIANT |
+| `claimbilling_bronze_requests` | 168 | 16 segment types across 3 files |
+| `claimbilling_bronze_responses` | 101 | 9 segment types across 3 files |
+| `claimbilling_bronze_supplemental` | 21 | Zero null keys |
+
+Null `key` values in requests (68/168) and responses (44/101) are by design — full-segment rows store the complete segment object in VARIANT `value`.
+
+#### Document Intelligence Pipeline
+
+| Table | Rows | Notes |
+| --- | --- | --- |
+| `specification_documents` | 1 | 3.3MB PDF (Payer Sheet Template v18) |
+| `specification_documents_parsed` | 1 | 787KB structured JSON, bounding boxes, confidence=1 |
+| `specification_documents_classified` | 1 | Label: `payer_sheet`, no errors, API v2.0 |
+| `specification_documents_extracted` | 1 | Title: "NCPDP Payer Sheet Template", Version: "18" |
+| `specification_search_chunks` | 178 | Avg 4,947 chars, range 1,153–8,607, zero empty |
+
+Zero AI errors across all stages. `doc_source_id` consistent 1:1 across all 4 downstream tables.
+
 ## TODO / Future Work
 
 ### AI Search Bundle (Vector Search)
