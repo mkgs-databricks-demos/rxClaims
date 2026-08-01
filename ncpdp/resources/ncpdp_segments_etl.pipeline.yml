@@ -1,0 +1,33 @@
+resources:
+  pipelines:
+    ncpdp_segments_etl:
+      name: ncpdp_segments_etl
+      libraries:
+        - glob:
+            include: ../src/ncpdp_segments_etl/transformations/**
+      serverless: true
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.ncpdp_schema.name}
+      root_path: ../src/ncpdp_segments_etl
+      configuration:
+        catalog_use: ${var.catalog}
+        file_types: ClaimBilling
+        schema_use: ${resources.schemas.ncpdp_schema.name}
+      development: true
+      edition: ADVANCED
+      channel: PREVIEW
+      event_log:
+        name: event_log_ncpdp_segments_etl
+        schema: ${var.event_log_schema}
+        catalog: ${var.event_log_catalog}
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+      environment:
+        dependencies:
+          - pyyaml

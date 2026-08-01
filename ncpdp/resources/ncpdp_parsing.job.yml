@@ -109,7 +109,7 @@ resources:
             op: EQUAL_TO
             left: "{{job.parameters.run_spec_process}}"
             right: "true"
-        
+
         # Download the Specification Document from the Public Internet (note that serverless egress controls must allow for this download)
         - task_key: Download_Spec_Doc
           depends_on:
@@ -128,14 +128,33 @@ resources:
           disable_auto_optimization: false
           environment_key: primary
         
-        # # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
-        # - task_key: Trigger_Full_Refresh_Specification_Pipeline
-        #   depends_on:
-        #     - task_key: Download_Spec_Doc
-        #   condition_task:
-        #     op: EQUAL_TO
-        #     left: "{{job.parameters.pipeline_full_refresh}}"
-        #     right: "true"
+        # Conditional Trigger for a Full Refresh Based on the Input Parameter Value 
+        - task_key: Trigger_Full_Refresh_Specification_Pipeline
+          depends_on:
+            - task_key: Download_Spec_Doc
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.pipeline_full_refresh}}"
+            right: "true"
+
+        # Document Intelligence Pipeline Full Refresh
+        - task_key: Full_Refresh_Document_Intelligence_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh_Specification_Pipeline
+              outcome: "true"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_document_intelligence.id}
+            full_refresh: true
+            
+        # Document Intelligence Pipeline Incremental Refresh
+        - task_key: Refresh_Document_Intelligence_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh_Specification_Pipeline
+              outcome: "false"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_document_intelligence.id}
+            full_refresh: false
+
         
       ##############################
       # Primary ETL Pipeline Control
