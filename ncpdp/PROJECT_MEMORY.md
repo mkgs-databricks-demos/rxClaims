@@ -79,43 +79,20 @@ Zero AI errors across all stages. `doc_source_id` consistent 1:1 across all 4 do
 
 ### AI Search Bundle (Vector Search)
 
-**Status:** Not started — scaffolding needed
+**Status:** Scaffolded — branch `mg-genie-ncpdp-ai-search-scaffold` (2026-08-02)
 
-Create a **separate DABs bundle** to declare the AI Search endpoint and Delta Sync index as resources. Requires `engine: direct` in that bundle's `databricks.yml`.
+Companion bundle at `rxClaims/ncpdp-ai-search/` declares:
+- STANDARD Vector Search endpoint (`ncpdp-specifications-vs-endpoint`)
+- Delta Sync index on `specification_search_chunks` (managed embeddings via `databricks-gte-large-en`, `TRIGGERED` pipeline type, synced column: `error_status`)
 
-**What to declare:**
+Targets mirror this bundle (dev/e2_demo_fe/free_edition) with matching catalog/schema values. Deploy this `ncpdp` bundle first, then `ncpdp-ai-search`.
 
-```yaml
-# Endpoint
-vector_search_endpoints:
-  ncpdp_specifications_endpoint:
-    name: ncpdp-specifications-vs-endpoint
-    endpoint_type: STANDARD
-
-# Delta Sync Index
-vector_search_indexes:
-  ncpdp_specifications_index:
-    name: ${var.catalog}.${var.schema}.specification_search_chunks_index_raw
-    endpoint_name: ${resources.vector_search_endpoints.ncpdp_specifications_endpoint.name}
-    primary_key: path
-    index_type: DELTA_SYNC
-    delta_sync_index_spec:
-      source_table: ${var.catalog}.${var.schema}.specification_search_chunks
-      pipeline_type: TRIGGERED  # or CONTINUOUS for auto-sync
-      embedding_source_columns:
-        - name: text
-          model_endpoint_name: databricks-gte-large-en
-      columns_to_sync:
-        - error_status
-```
-
-**Reference:** Check other project examples (e.g., lakeLoom, dbxWearables) for bundle scaffolding patterns. VS endpoint requires CLI >= 0.298.0; index requires CLI >= 1.1.0.
-
-**From the old notebooks (now removed from job):**
-- Endpoint creation: `src/vector_search/00-enable-vector-search-endpoints` (used SP auth via secret scope `ncpdp_vs_sp`)
-- Index creation: `src/vector_search/01-create-vector-index` (primary_key=`path`, embedding_source_column=`text`, columns_to_sync=`error_status`, embedding_model=`databricks-gte-large-en`)
-- The index enables CDF on the source table before creation
-- Secret scope `ncpdp_vs_sp` holds SP credentials (`client_id`, `secret`) for VS client auth
+**Next steps for AI Search:**
+- Merge feature branch to main
+- Deploy the companion bundle (`databricks bundle deploy --target dev`)
+- Optionally add a sync task to `ncpdp_parsing` job after doc intelligence completes
+- Remove old `src/vector_search/` notebooks (now fully replaced by declarative resources)
+- Secret scope `ncpdp_vs_sp` may be retired once SP auth is no longer needed for imperative index creation
 
 ### Known Issues
 
