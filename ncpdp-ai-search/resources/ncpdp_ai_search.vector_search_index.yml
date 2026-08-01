@@ -1,0 +1,31 @@
+# Delta Sync Vector Search Index for NCPDP Specification Chunks
+#
+# Reads from the `specification_search_chunks` table produced by the
+# ncpdp_document_intelligence pipeline in the companion `ncpdp` bundle.
+# Uses managed embeddings (databricks-gte-large-en, 1024 dims) to
+# automatically vectorize the `text` column on sync.
+#
+# Pipeline type: TRIGGERED — manually invoke sync_index() or wire to
+# the ncpdp_parsing job as a downstream task when spec docs are refreshed.
+#
+# Prerequisites (managed by the ncpdp bundle):
+#   - Source table has CDF enabled (delta.enableChangeDataFeed = true)
+#   - Source table has a PRIMARY KEY constraint on `path`
+#   - The deploying principal has USE CATALOG + USE SCHEMA + CREATE TABLE
+#   - The principal has CAN_USE on the VS endpoint
+
+resources:
+  vector_search_indexes:
+    ncpdp_specifications_index:
+      name: ${var.catalog}.${var.schema}.specification_search_chunks_${var.vs_index_suffix}
+      endpoint_name: ${resources.vector_search_endpoints.ncpdp_specifications_endpoint.name}
+      primary_key: path
+      index_type: DELTA_SYNC
+      delta_sync_index_spec:
+        source_table: ${var.catalog}.${var.schema}.specification_search_chunks
+        pipeline_type: ${var.pipeline_type}
+        embedding_source_columns:
+          - name: text
+            embedding_model_endpoint_name: ${var.embedding_model}
+        columns_to_sync:
+          - error_status

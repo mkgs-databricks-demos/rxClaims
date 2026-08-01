@@ -1,0 +1,158 @@
+# Declarative Automation Bundle — ncpdp-ai-search
+# Vector Search infrastructure for the rxClaims NCPDP project.
+# Deploy the companion `ncpdp` bundle FIRST — it creates the schema,
+# pipelines, and the source table (specification_search_chunks) that
+# this bundle's Delta Sync index reads from.
+#
+# This bundle manages:
+#   - Vector Search Endpoint (STANDARD)
+#   - Delta Sync Index (managed embeddings via databricks-gte-large-en)
+#
+# See https://docs.databricks.com/en/dev-tools/bundles/settings.html
+
+bundle:
+  name: ncpdp-ai-search
+  uuid: 7e2a4f91-3c8d-4b1a-9f5e-6d7c8a9b0e12
+
+include:
+  - resources/*.yml
+  - resources/*/*.yml
+
+# ---------------------------------------------------------------------------
+# Variable declarations
+# ---------------------------------------------------------------------------
+#
+# CONVENTION — catalog & schema references:
+#   The `catalog` and `schema` variables below MUST match the values
+#   deployed by the companion `ncpdp` bundle for the same target.
+#   This bundle does NOT declare its own schema resource — it reads
+#   from tables the ncpdp bundle creates.
+#
+#   All resource YAMLs reference these via ${var.catalog} and ${var.schema}
+#   to construct fully-qualified table names for the VS index source.
+#
+# CONVENTION — naming:
+#   The endpoint and index names are derived from variables so they
+#   stay aligned across environments without manual coordination.
+# ---------------------------------------------------------------------------
+variables:
+  catalog:
+    description: >
+      The Unity Catalog catalog containing the NCPDP schema.
+      Must match the ncpdp bundle's catalog for the same target.
+  schema:
+    description: >
+      The Unity Catalog schema containing the specification_search_chunks table.
+      Must match the ncpdp bundle's schema for the same target.
+  embedding_model:
+    description: The Foundation Model endpoint used for managed embeddings.
+    default: databricks-gte-large-en
+  vs_endpoint_name:
+    description: Name of the Vector Search endpoint to create/use.
+    default: ncpdp-specifications-vs-endpoint
+  vs_index_suffix:
+    description: >
+      Suffix appended to the source table name to form the index name.
+      Final index: ${var.catalog}.${var.schema}.specification_search_chunks_${var.vs_index_suffix}
+    default: index
+  pipeline_type:
+    description: >
+      Delta Sync pipeline type: TRIGGERED (on-demand via sync_index) or
+      CONTINUOUS (auto-sync when source table changes).
+    default: TRIGGERED
+
+  # ── Operational ──────────────────────────────────────────────────────
+  run_as_user:
+    default: matthew.giglia@databricks.com
+    description: The principal the workflows and resources should run as.
+  serverless_environment_version:
+    default: "4"
+    description: The Serverless Environment version (if jobs are added later).
+
+  # ── Tags ─────────────────────────────────────────────────────────────
+  tags_parentProject:
+    default: mkgs-databricks-demos
+    description: Parent project used for tagging deployed resources.
+  tags_project:
+    default: rxClaims
+    description: Project/subproject name for tagging.
+  tags_businessUnit:
+    default: Healthcare and Life Sciences
+    description: Business unit for cost allocation.
+  tags_developer:
+    default: matthew.giglia@databricks.com
+    description: Primary developer for Ops contacts.
+  tags_requestedBy:
+    default: Databricks
+    description: Team or stakeholder that requested the project.
+  tags_RemoveAfter:
+    default: 2026-12-04
+    description: Date after which resources may be safely destroyed.
+
+# ---------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------
+targets:
+
+  # ── dev (default) ───────────────────────────────────────────────────────
+  dev:
+    mode: development
+    default: true
+    presets:
+      source_linked_deployment: true
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://fevm-hls-fde.cloud.databricks.com
+    variables:
+      catalog: ncpdp_dev
+      schema: rx_claims
+
+  # ── e2_demo_fe ──────────────────────────────────────────────────────────
+  e2_demo_fe:
+    mode: development
+    presets:
+      name_prefix: '[dev ${workspace.current_user.short_name}] '
+      source_linked_deployment: true
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://e2-demo-field-eng.cloud.databricks.com
+    variables:
+      catalog: mgiglia
+      schema: ncpdp_rx
+
+  # ── free_edition ────────────────────────────────────────────────────────
+  free_edition:
+    mode: production
+    presets:
+      source_linked_deployment: false
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
+    workspace:
+      host: https://dbc-e5684c0a-20fa.cloud.databricks.com
+      root_path: /Workspace/${bundle.target}/.bundle/${bundle.name}
+    variables:
+      catalog: prod
+      schema: ncpdp_rx
+    permissions:
+      - user_name: ${var.run_as_user}
+        level: CAN_MANAGE
