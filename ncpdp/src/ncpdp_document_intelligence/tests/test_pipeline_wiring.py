@@ -33,8 +33,8 @@ test_pipeline = TestPipeline.active()
 
 # Pipeline config vars (resolved from pipeline settings at test time)
 # These match the pipeline YAML: catalog_use, schema_use
-CATALOG = spark.conf.get("catalog_use")
-SCHEMA = spark.conf.get("schema_use")
+# CATALOG = spark.conf.get("catalog_use")
+# SCHEMA = spark.conf.get("schema_use")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -47,10 +47,21 @@ SCHEMA = spark.conf.get("schema_use")
 MINIMAL_PDF_TEXT = "NCPDP Telecommunication Standard Implementation Guide Version D.0 Segment AM01 Patient Request"
 
 
-def _fqn(table_suffix: str) -> str:
-    """Fully qualified table name using pipeline config."""
-    return f"{CATALOG}.{SCHEMA}.{table_suffix}"
+# def _fqn(table_suffix: str) -> str:
+#     """Fully qualified table name using pipeline config."""
+#     return f"{CATALOG}.{SCHEMA}.{table_suffix}"
 
+def _fqn(table_suffix: str) -> str:
+    """Fully qualified table name using pipeline config.
+
+    Resolves at call time (inside tests), not at import time,
+    so test discovery doesn't fail when spark isn't yet available.
+    """
+    from pyspark.sql import SparkSession
+    s = SparkSession.getActiveSession()
+    catalog = s.conf.get("catalog_use")
+    schema = s.conf.get("schema_use")
+    return f"{catalog}.{schema}.{table_suffix}"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Mock Setup Functions

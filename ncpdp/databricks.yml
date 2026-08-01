@@ -87,7 +87,8 @@ targets:
         env: ${bundle.target}
     default: true
     workspace:
-      host: https://fe-vm-mkgs-databricks-demos.cloud.databricks.com/
+      # host: https://fe-vm-mkgs-databricks-demos.cloud.databricks.com/
+      host: https://fevm-hls-fde.cloud.databricks.com/
     variables:
       catalog: ncpdp_dev
       schema: rx_claims
