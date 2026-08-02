@@ -1,0 +1,13 @@
+# Vector Search Endpoint for NCPDP Specification Document Retrieval
+#
+# STANDARD endpoint provides low-latency (<50ms) similarity search
+# for RAG queries against NCPDP payer sheet specifications.
+#
+# The endpoint hosts the Delta Sync index defined in
+# ncpdp_ai_search.vector_search_index.yml.
+
+resources:
+  vector_search_endpoints:
+    ncpdp_specifications_endpoint:
+      name: ${var.vs_endpoint_name}
+      endpoint_type: STANDARD

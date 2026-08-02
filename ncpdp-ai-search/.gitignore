@@ -1,0 +1,16 @@
+# Databricks bundle state
+.databricks/
+
+# Python
+*.pyc
+__pycache__/
+.venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

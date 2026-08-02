@@ -17,7 +17,7 @@
 | ncpdp_parsing job | `343795472366843` |
 | ncpdp_document_intelligence pipeline | `4f578841-dd5a-4790-88bd-37db06153eb5` |
 | ncpdp_etl pipeline | (deployed, ID in state file) |
-| ncpdp_specification_document_parsing pipeline | `99613f24-be05-430e-9aa8-745a877132d9` |
+| ncpdp_specification_document_parsing pipeline | DELETED (legacy, 2026-08-02) |
 | ncpdp_segments_etl pipeline | `ad447b3e-42bf-43bb-b233-50016ef00d2e` |
 | SQL warehouse | `5f0c7384ea5e0d28` |
 
@@ -79,48 +79,58 @@ Zero AI errors across all stages. `doc_source_id` consistent 1:1 across all 4 do
 
 ### AI Search Bundle (Vector Search)
 
-**Status:** Not started — scaffolding needed
+**Status:** DEPLOYED & OPERATIONAL (2026-08-02)
 
-Create a **separate DABs bundle** to declare the AI Search endpoint and Delta Sync index as resources. Requires `engine: direct` in that bundle's `databricks.yml`.
+Companion bundle at `rxClaims/ncpdp-ai-search/` (branch: `mg-genie-cleanup-legacy-pipelines`):
+- STANDARD Vector Search endpoint (`ncpdp-specifications-vs-endpoint`) — ONLINE
+- Delta Sync index on `specification_search_chunks` — 178 rows indexed, Ready
+  - Primary key: `chunk_id` (NOT `path` — all rows share one path)
+  - Embedding: `chunk_to_embed` → `databricks-gte-large-en`
+  - Synced: `doc_source_id`, `path`, `chunk_position`, `chunk_to_retrieve`
+  - Pipeline type: TRIGGERED
 
-**What to declare:**
+Targets mirror this bundle (dev/e2_demo_fe/free_edition). Deploy `ncpdp` first, then `ncpdp-ai-search`.
 
-```yaml
-# Endpoint
-vector_search_endpoints:
-  ncpdp_specifications_endpoint:
-    name: ncpdp-specifications-vs-endpoint
-    endpoint_type: STANDARD
+**Critical finding: Always use `query_type="HYBRID"`** for NCPDP content.
+BM25 keyword matching on field codes (101-A1, AM07, B1) raises scores from 0.56–0.62 (ANN) to 0.97–1.00 (HYBRID).
 
-# Delta Sync Index
-vector_search_indexes:
-  ncpdp_specifications_index:
-    name: ${var.catalog}.${var.schema}.specification_search_chunks_index_raw
-    endpoint_name: ${resources.vector_search_endpoints.ncpdp_specifications_endpoint.name}
-    primary_key: path
-    index_type: DELTA_SYNC
-    delta_sync_index_spec:
-      source_table: ${var.catalog}.${var.schema}.specification_search_chunks
-      pipeline_type: TRIGGERED  # or CONTINUOUS for auto-sync
-      embedding_source_columns:
-        - name: text
-          model_endpoint_name: databricks-gte-large-en
-      columns_to_sync:
-        - error_status
-```
+### Rule Extraction Prototype (2026-08-02)
 
-**Reference:** Check other project examples (e.g., lakeLoom, dbxWearables) for bundle scaffolding patterns. VS endpoint requires CLI >= 0.298.0; index requires CLI >= 1.1.0.
+**Goal:** Extract structured validation rules from the specification chunks for use in bronze→silver expectations.
 
-**From the old notebooks (now removed from job):**
-- Endpoint creation: `src/vector_search/00-enable-vector-search-endpoints` (used SP auth via secret scope `ncpdp_vs_sp`)
-- Index creation: `src/vector_search/01-create-vector-index` (primary_key=`path`, embedding_source_column=`text`, columns_to_sync=`error_status`, embedding_model=`databricks-gte-large-en`)
-- The index enables CDF on the source table before creation
-- Secret scope `ncpdp_vs_sp` holds SP credentials (`client_id`, `secret`) for VS client auth
+**Two rule granularities identified:**
+1. **TRANSACTION-level** — segment presence/absence based on values in OTHER segments
+   (e.g., Compound Segment AM10 required when `F_406_D6 = '2'` in Claim Segment)
+2. **FIELD-level** — individual value validation (format, allowed values, conditionality)
+   (e.g., BIN Number 101-A1: Mandatory, 6-digit numeric)
+
+**Prototype results (3 chunks → 48 rules):**
+- `ai_query('databricks-claude-sonnet-4', ...)` with structured JSON extraction prompt
+- Rule types: MANDATORY (25), REQUIRED/REQUIRED_WHEN (15), FORMAT (5), SITUATIONAL (3)
+- Correctly generates: silver column names, SQL data types, allowed values arrays
+- Conditions reference bronze field codes (`F_406_D6 = '2'`) — directly usable in expectations
+- Estimated full corpus: ~1,700 rules from ~106 rule-bearing chunks
+- Cost: ~$0.32 total for full extraction
+
+**Remaining issues for extraction quality:**
+1. Chunk boundaries cut across segment sections → misses rules at boundaries
+2. Cross-segment conditions need `referenced_segment` field
+3. Repeating field groups (compound ingredients) need cardinality modeling
+4. HTML table markup (~30% of content) dilutes embeddings and extraction
+5. Dedup needed — same fields in Claim Billing AND Claim Rebill sections
+
+**Architecture plan:** See `fixtures/architecture/rule-extraction-system.md`
+
+**Next steps:**
+- Build `specification_rules` table via extraction notebook
+- Add second VS index (`specification_rules_index`) to AI Search bundle
+- Custom segment-aware re-chunking (replaces `ai_prep_search` defaults)
+- Wire rule extraction into `ncpdp_parsing` job or as standalone pipeline
 
 ### Known Issues
 
 1. **segments.py syntax bug** — Line 8: `segments_yaml_path = '../../../fixtures/config/segments/"'` — mismatched quotes
-2. **specification_further_processing/temporary_views.py** — Hardcoded table ref `ncpdp_dev.dev_matthew_giglia_rx_claims.specification_documents_parsed` (legacy, pipeline replaced by document_intelligence)
+2. ~~specification_further_processing/temporary_views.py~~ — DELETED (legacy pipeline removed 2026-08-02)
 3. **Segments.review_segments() stub** — Currently just streams all requests to output; YAML rules not applied
 4. **test_pipeline_wiring.py** — Tier 1 tests need the pipeline's source volume populated (run job with `run_spec_process=true` first)
 
