@@ -635,10 +635,13 @@ class DocumentIntelligence:
     def chunk_by_segment(self):
         """Produce segment-aware chunks optimized for rule extraction.
 
-        Reads the search chunks produced by prep_search(), concatenates them
-        back into the full document per doc_source_id, splits by NCPDP
-        segment boundaries, strips HTML, and writes metadata-enriched chunks
-        suitable for LLM-based rule extraction.
+        Reads the search chunks produced by prep_search(), reconstructs the
+        full document per doc_source_id, splits by NCPDP segment boundaries,
+        strips HTML, and writes metadata-enriched chunks suitable for
+        LLM-based rule extraction.
+
+        Uses a materialized view (batch read) because the reconstruction
+        requires groupBy aggregation which is incompatible with streaming.
 
         Output table: specification_chunks_by_segment
         """
@@ -655,7 +658,7 @@ class DocumentIntelligence:
                 return []
             return segment_document_to_chunks(full_html, doc_source_id)
 
-        @dp.table(
+        @dp.materialized_view(
             name=table_name,
             comment=(
                 "Segment-aware chunks from NCPDP specification documents. "
@@ -665,27 +668,33 @@ class DocumentIntelligence:
             ),
             table_properties=gold_props,
             cluster_by_auto=True,
-            temporary=False,
         )
         def segment_chunks():
             from pyspark.sql.functions import (
+                array_sort,
                 collect_list,
                 concat_ws,
                 explode,
                 struct,
+                transform,
             )
 
-            # Reconstruct full document from search chunks
+            # Reconstruct full document from search chunks (ordered by position)
             full_docs = (
-                self.spark.readStream
+                self.spark.read
                 .table(source_table)
                 .groupBy("doc_source_id")
                 .agg(
                     concat_ws(
                         "\n",
-                        collect_list(
-                            struct(col("chunk_position"), col("chunk_to_retrieve"))
-                        ).getField("chunk_to_retrieve")
+                        transform(
+                            array_sort(
+                                collect_list(
+                                    struct(col("chunk_position"), col("chunk_to_retrieve"))
+                                )
+                            ),
+                            lambda x: x.getField("chunk_to_retrieve")
+                        )
                     ).alias("full_html")
                 )
             )
