@@ -94,6 +94,25 @@ Targets mirror this bundle (dev/e2_demo_fe/free_edition). Deploy `ncpdp` first, 
 **Critical finding: Always use `query_type="HYBRID"`** for NCPDP content.
 BM25 keyword matching on field codes (101-A1, AM07, B1) raises scores from 0.56–0.62 (ANN) to 0.97–1.00 (HYBRID).
 
+### Orchestrated Rule Extraction System (2026-08-03)
+
+**Architecture:** Three Genie Code scheduled tasks execute workstreams in sequence,
+coordinated via `fixtures/handoffs/` status file protocol (polling every 15 min).
+
+**Key decision:** Workstreams B+C are implemented as a NEW SDP pipeline
+(`ncpdp_rule_extraction`) rather than standalone notebooks. This enables CDF-driven
+incremental processing when new spec documents are added later.
+
+| Task | Workstream | Output |
+| --- | --- | --- |
+| NCPDP WS-A Re-Chunking | Segment-aware re-chunking in doc intelligence pipeline | `specification_chunks_by_segment` |
+| NCPDP WS-BC Rule Extraction | New `ncpdp_rule_extraction` pipeline (extraction + post-processing) | `specification_rules` |
+| NCPDP WS-D Silver Codegen | Rule-driven `ncpdp_segments_etl` implementation | `claimbilling_silver_{segment}` |
+
+**Prompt files:** `fixtures/architecture/scheduled-tasks/`
+**Handoff protocol:** `fixtures/handoffs/` (see README there)
+**Branch strategy:** Each workstream creates independent feature branch off main (different directories, no conflicts)
+
 ### Rule Extraction Prototype (2026-08-02)
 
 **Goal:** Extract structured validation rules from the specification chunks for use in bronze→silver expectations.
