@@ -1,15 +1,16 @@
-"""NCPDP Rule Extraction Pipeline — Spark Declarative Pipeline.
+"""NCPDP Rule Extraction Pipeline - Spark Declarative Pipeline.
 
-Stage 1: specification_rules_raw (streaming table)
+Stage 1: specification_rules_raw (table)
   - Reads specification_chunks_by_segment
   - Calls ai_query for each chunk to extract structured rules
   - Parses JSON response and explodes into individual rules
 
 Stage 2: specification_rules (materialized view)
-  - Deduplicates on natural key
-  - Resolves cross-segment references
-  - Normalizes column names and bronze keys
+  - Deduplicates on natural key (SQL MD5)
+  - Resolves cross-segment references (SQL CASE)
+  - Normalizes column names and bronze keys (SQL regex)
   - Applies data quality expectations
+  - NO Python UDFs — all SQL expressions to avoid worker serialization issues
 """
 
 from pyspark import pipelines as dp
@@ -20,14 +21,7 @@ from pyspark.sql.types import (
 
 import sys
 sys.path.insert(0, "../utilities")
-from utils import (
-    EXTRACTION_PROMPT,
-    generate_rule_id,
-    field_code_to_bronze_key,
-    normalize_column_name,
-    generate_column_comment,
-    resolve_condition_segment,
-)
+from utils import EXTRACTION_PROMPT
 
 # Pipeline configuration
 catalog_use = spark.conf.get("catalog_use")
@@ -38,7 +32,7 @@ MODEL_ENDPOINT = "databricks-claude-sonnet-4"
 
 
 # =============================================================================
-# STAGE 1: specification_rules_raw (streaming table)
+# STAGE 1: specification_rules_raw (table)
 # =============================================================================
 
 @dp.table(
@@ -62,35 +56,26 @@ def specification_rules_raw():
         )
     )
 
-    # Add prompt column — concatenate system prompt with chunk text
-    prompt_col = F.concat(
-        F.lit(EXTRACTION_PROMPT),
-        F.lit("\n\nSpecification text:\n"),
-        F.col("chunk_text")
+    # Build prompt column using F.lit() + F.concat() to avoid SQL escaping.
+    # Then call ai_query via F.expr() referencing the column by name.
+    # NOTE: spark.sql(..., args=...) is NOT supported in SDP (monkey-patched).
+    with_prompt = chunks_df.withColumn(
+        "_prompt_text",
+        F.concat(
+            F.lit(EXTRACTION_PROMPT),
+            F.lit("\n\nSpecification text:\n"),
+            F.col("chunk_text")
+        )
     )
 
-    # Call ai_query via SQL expression — register chunks as temp view
-    chunks_df.createOrReplaceTempView("_extraction_chunks")
-
-    # Use parameterized SQL for the ai_query call
-    extraction_result = spark.sql(
-        """
-        SELECT
-            chunk_id AS source_chunk_id,
-            segment_code,
-            transaction_type,
-            :model_endpoint AS extraction_model,
-            CURRENT_TIMESTAMP() AS extracted_at,
-            ai_query(
-                :model_endpoint,
-                CONCAT(:prompt, '\n\nSpecification text:\n', chunk_text)
-            ) AS raw_response
-        FROM _extraction_chunks
-        """,
-        args={
-            "model_endpoint": MODEL_ENDPOINT,
-            "prompt": EXTRACTION_PROMPT,
-        }
+    extraction_result = with_prompt.withColumn(
+        "raw_response",
+        F.expr(f"ai_query('{MODEL_ENDPOINT}', _prompt_text)")
+    ).select(
+        F.col("chunk_id").alias("source_chunk_id"),
+        F.lit(MODEL_ENDPOINT).alias("extraction_model"),
+        F.current_timestamp().alias("extracted_at"),
+        F.col("raw_response"),
     )
 
     # Define schema for parsing the JSON response
@@ -160,14 +145,25 @@ def specification_rules_raw():
 
 # =============================================================================
 # STAGE 2: specification_rules (materialized view)
+# Uses SQL expressions instead of Python UDFs to avoid worker serialization
+# issues (workers can't import ../utilities/utils.py via sys.path).
 # =============================================================================
 
-# Register UDFs for post-processing
-generate_rule_id_udf = F.udf(generate_rule_id, StringType())
-field_code_to_bronze_key_udf = F.udf(field_code_to_bronze_key, StringType())
-normalize_column_name_udf = F.udf(normalize_column_name, StringType())
-generate_column_comment_udf = F.udf(generate_column_comment, StringType())
-resolve_condition_segment_udf = F.udf(resolve_condition_segment, StringType())
+# Field segment map as SQL CASE expression
+_FIELD_SEGMENT_SQL = """
+    CASE
+        WHEN condition LIKE '%F_406_D6%' OR condition LIKE '%406-D6%' THEN '07'
+        WHEN condition LIKE '%F_308_C8%' OR condition LIKE '%308-C8%' THEN '04'
+        WHEN condition LIKE '%F_202_B2%' OR condition LIKE '%202-B2%' THEN 'HD'
+        WHEN condition LIKE '%F_461_EU%' OR condition LIKE '%461-EU%' THEN '07'
+        WHEN condition LIKE '%F_462_EV%' OR condition LIKE '%462-EV%' THEN '07'
+        WHEN condition LIKE '%F_436_DN%' OR condition LIKE '%436-DN%' THEN '07'
+        WHEN condition LIKE '%F_407_D7%' OR condition LIKE '%407-D7%' THEN '07'
+        WHEN condition LIKE '%F_418_DI%' OR condition LIKE '%418-DI%' THEN '07'
+        WHEN condition LIKE '%F_414_DE%' OR condition LIKE '%414-DE%' THEN '07'
+        ELSE NULL
+    END
+"""
 
 
 @dp.expect("rule_id_not_null", "rule_id IS NOT NULL")
@@ -186,24 +182,41 @@ resolve_condition_segment_udf = F.udf(resolve_condition_segment, StringType())
 )
 def specification_rules():
     """Deduplicate, enrich, and validate extracted rules."""
+    from pyspark.sql.window import Window
 
-    raw = spark.read.table("specification_rules_raw")
+    raw_table = spark.read.table(f"{catalog_use}.{schema_use}.specification_rules_raw")
+    chunks_table = spark.read.table(source_table).select(
+        F.col("chunk_id"), F.col("segment_code").alias("_chunk_segment_code")
+    )
 
-    # Step 1: Generate rule_id for deduplication
+    # Backfill null segment_code from source chunk metadata
+    raw = raw_table.join(
+        chunks_table,
+        raw_table["source_chunk_id"] == chunks_table["chunk_id"],
+        "left"
+    ).withColumn(
+        "segment_code",
+        F.coalesce(F.col("segment_code"), F.col("_chunk_segment_code"))
+    ).drop("chunk_id", "_chunk_segment_code")
+
+    # Step 1: Generate rule_id via SQL MD5 (no UDF needed)
     with_id = raw.withColumn(
         "rule_id",
-        generate_rule_id_udf(
-            F.col("segment_code"),
-            F.col("field_code"),
-            F.col("rule_type"),
-            F.col("condition"),
-            F.col("transaction_types")
-        )
+        F.expr("""
+            SUBSTRING(
+                MD5(CONCAT_WS('|',
+                    COALESCE(segment_code, ''),
+                    COALESCE(field_code, ''),
+                    COALESCE(rule_type, ''),
+                    COALESCE(condition, ''),
+                    COALESCE(CAST(transaction_types AS STRING), '')
+                )),
+                1, 16
+            )
+        """)
     )
 
     # Step 2: Deduplicate on rule_id - keep row with longest rule_text
-    from pyspark.sql.window import Window
-
     window = Window.partitionBy("rule_id").orderBy(
         F.length(F.coalesce(F.col("rule_text"), F.lit(""))).desc(),
         F.size(F.coalesce(F.col("allowed_values"), F.array())).desc(),
@@ -214,35 +227,66 @@ def specification_rules():
         "_rn", F.row_number().over(window)
     ).filter(F.col("_rn") == 1).drop("_rn")
 
-    # Step 3: Enrich - bronze_key, column_name normalization, cross-segment resolution
+    # Step 3: Enrich via SQL expressions (no Python UDFs)
+    # bronze_key: extract field code components via regex -> F_NNN_XX format
     enriched = deduped.withColumn(
         "bronze_key",
         F.when(
             F.col("field_code").isNotNull(),
-            field_code_to_bronze_key_udf(F.col("field_code"))
+            F.expr("""
+                CONCAT('F_',
+                    LPAD(REGEXP_EXTRACT(field_code, '(\\d+)', 1), 3, '0'),
+                    '_',
+                    REGEXP_EXTRACT(field_code, '[- ](\\w+)$', 1)
+                )
+            """)
         )
     ).withColumn(
+        # normalize column_name: lower, replace non-alnum with _, trim, max 63
         "column_name",
         F.when(
             F.col("field_name").isNotNull(),
             F.coalesce(
                 F.col("column_name"),
-                normalize_column_name_udf(F.col("field_name"))
+                F.expr("""
+                    SUBSTRING(
+                        REGEXP_REPLACE(
+                            REGEXP_REPLACE(
+                                REGEXP_REPLACE(LOWER(field_name), '[^a-z0-9]+', '_'),
+                                '^_+|_+$', ''
+                            ),
+                            '_+', '_'
+                        ),
+                        1, 63
+                    )
+                """)
             )
         ).otherwise(F.col("column_name"))
     ).withColumn(
+        # resolve condition_segment via CASE WHEN map
         "condition_segment",
         F.coalesce(
             F.col("condition_segment"),
-            resolve_condition_segment_udf(F.col("condition"), F.col("segment_code"))
+            F.expr(_FIELD_SEGMENT_SQL)
         )
     ).withColumn(
+        # column_comment: "field_code | field_name | payer_usage" truncated to 255
         "column_comment",
         F.when(
             F.col("field_code").isNotNull(),
-            generate_column_comment_udf(
-                F.col("field_code"), F.col("field_name"), F.col("payer_usage")
-            )
+            F.expr("""
+                SUBSTRING(
+                    CONCAT(
+                        COALESCE(field_code, ''),
+                        ' | ',
+                        COALESCE(field_name, ''),
+                        CASE WHEN payer_usage IS NOT NULL
+                             THEN CONCAT(' | ', payer_usage)
+                             ELSE '' END
+                    ),
+                    1, 255
+                )
+            """)
         )
     )
 

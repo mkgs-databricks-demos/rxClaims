@@ -163,3 +163,27 @@ incremental processing when new spec documents are added later.
 | --- | --- | --- |
 | Tier 2 (pure functions) | `src/ncpdp_document_intelligence/tests/test_utils.py` | 82 tests PASSED |
 | Tier 1 (pipeline wiring) | `src/ncpdp_document_intelligence/tests/test_pipeline_wiring.py` | In progress — needs volume setup |
+
+## Workstream B+C: Rule Extraction Pipeline (2026-08-02)
+
+### Pipeline: ncpdp_rule_extraction
+- **ID:** `5b731220-382b-4c21-b590-78f347415433`
+- **Output:** `specification_rules` (1,647 deduplicated rules), `specification_rules_raw` (2,713 raw)
+- **Source:** `specification_chunks_by_segment` (601 chunks from doc intelligence pipeline)
+
+### SDP Gotchas Learned
+
+1. **`spark.sql(..., args=...)` NOT supported in SDP** — The pipeline runtime monkey-patches `spark.sql()` and doesn't forward keyword arguments. Fix: Use `F.lit()` + `F.concat()` to build values, then `F.expr("ai_query('model', column_name)")` to reference columns.
+
+2. **Python UDFs fail with `ModuleNotFoundError` on workers** — UDFs referencing functions imported via `sys.path.insert()` can't be deserialized on workers (no access to custom paths). Fix: Replace with SQL expressions (`F.expr(...)`) — MD5, REGEXP_EXTRACT, CASE WHEN, etc. are all native SQL.
+
+3. **Pipeline can't claim existing MANAGED tables** — If a table already exists as MANAGED (created by notebook), the pipeline can't recreate it as STREAMING TABLE or MATERIALIZED VIEW. Fix: DROP the existing table first.
+
+4. **Streaming tables owned by dev-mode pipelines can vanish** — When the pipeline source code changes and reconciles state, tables not defined in the current graph get dropped. Always verify upstream tables exist before depending on them.
+
+5. **`EXTRACTION_PROMPT` import is safe** — String constants imported from utils are resolved at module load time on the driver and don't need worker serialization. Only function references trigger the UDF issue.
+
+### Architecture Pattern
+- Stage 1 (`@dp.table`): LLM extraction via `ai_query()` + JSON parse + explode
+- Stage 2 (`@dp.materialized_view`): SQL-only enrichment (MD5 dedup, regex bronze_key, CASE segment resolution, backfill from chunk metadata)
+- Zero Python UDFs in Stage 2 — all SQL expressions for worker compatibility
