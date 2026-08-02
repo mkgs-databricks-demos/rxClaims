@@ -10,7 +10,7 @@
 #
 # Prerequisites (managed by the ncpdp bundle):
 #   - Source table has CDF enabled (delta.enableChangeDataFeed = true)
-#   - Source table has a PRIMARY KEY constraint on `path`
+#   - Source table has a PRIMARY KEY constraint on `chunk_id`
 #   - The deploying principal has USE CATALOG + USE SCHEMA + CREATE TABLE
 #   - The principal has CAN_USE on the VS endpoint
 
@@ -19,7 +19,7 @@ resources:
     ncpdp_specifications_index:
       name: ${var.catalog}.${var.schema}.specification_search_chunks_${var.vs_index_suffix}
       endpoint_name: ${resources.vector_search_endpoints.ncpdp_specifications_endpoint.name}
-      primary_key: path
+      primary_key: chunk_id
       index_type: DELTA_SYNC
       delta_sync_index_spec:
         source_table: ${var.catalog}.${var.schema}.specification_search_chunks
@@ -29,6 +29,6 @@ resources:
             embedding_model_endpoint_name: ${var.embedding_model}
         columns_to_sync:
           - doc_source_id
-          - chunk_id
+          - path
           - chunk_position
           - chunk_to_retrieve
