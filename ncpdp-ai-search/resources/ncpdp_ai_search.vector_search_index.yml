@@ -3,7 +3,7 @@
 # Reads from the `specification_search_chunks` table produced by the
 # ncpdp_document_intelligence pipeline in the companion `ncpdp` bundle.
 # Uses managed embeddings (databricks-gte-large-en, 1024 dims) to
-# automatically vectorize the `text` column on sync.
+# automatically vectorize the `chunk_to_embed` column on sync.
 #
 # Pipeline type: TRIGGERED — manually invoke sync_index() or wire to
 # the ncpdp_parsing job as a downstream task when spec docs are refreshed.
