@@ -6,6 +6,7 @@ Orchestrates the full document intelligence chain:
   3. classify_documents: ai_classify v2 with descriptive NCPDP document type labels
   4. extract_fields: ai_extract v2 with typed NCPDP segment/field schema
   5. prep_search: ai_prep_search semantic chunking for vector search / RAG
+  6. chunk_by_segment: Segment-aware re-chunking for rule extraction
 """
 from utilities.utils import DocumentIntelligence
 
@@ -25,3 +26,4 @@ pipeline.parse_documents()
 pipeline.classify_documents()
 pipeline.extract_fields()
 pipeline.prep_search()
+pipeline.chunk_by_segment()

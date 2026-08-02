@@ -10,9 +10,10 @@ pipeline using the modern Spark Declarative Pipelines API and v2 AI functions:
 Testable pure functions are defined at module level (no Spark dependency).
 The DocumentIntelligence class orchestrates these into SDP streaming tables.
 """
+import hashlib
 import json
 import re
-from typing import Optional
+from typing import Dict, List, Optional
 
 from pyspark import pipelines as dp
 from pyspark.sql import SparkSession
@@ -20,6 +21,15 @@ from pyspark.sql.functions import (
     col,
     lower,
     regexp_extract,
+    udf,
+)
+from pyspark.sql.types import (
+    ArrayType,
+    BooleanType,
+    IntegerType,
+    StringType,
+    StructField,
+    StructType,
 )
 
 
@@ -616,4 +626,87 @@ class DocumentIntelligence:
                 .filter("try_cast(parsed:error_status AS STRING) IS NULL")
                 .selectExpr(*stage_1)
                 .selectExpr(*stage_2)
+            )
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Layer 6: Segment Chunks — custom segment-aware re-chunking for rule extraction
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    def chunk_by_segment(self):
+        """Produce segment-aware chunks optimized for rule extraction.
+
+        Reads the search chunks produced by prep_search(), concatenates them
+        back into the full document per doc_source_id, splits by NCPDP
+        segment boundaries, strips HTML, and writes metadata-enriched chunks
+        suitable for LLM-based rule extraction.
+
+        Output table: specification_chunks_by_segment
+        """
+
+        gold_props = get_table_properties(self.table_properties, "gold")
+        table_name = get_table_name(self.catalog, self.schema, "specification_chunks_by_segment")
+        source_table = get_table_name(self.catalog, self.schema, "specification_search_chunks")
+
+        # Define UDF for segment chunking
+        @udf(returnType=SEGMENT_CHUNK_SCHEMA)
+        def segment_chunk_udf(full_html: str, doc_source_id: str):
+            """UDF wrapper around segment_document_to_chunks."""
+            if not full_html or not doc_source_id:
+                return []
+            return segment_document_to_chunks(full_html, doc_source_id)
+
+        @dp.table(
+            name=table_name,
+            comment=(
+                "Segment-aware chunks from NCPDP specification documents. "
+                "Each chunk corresponds to a single segment section with HTML stripped, "
+                "metadata enriched, and context headers for embedding. "
+                "Optimized for LLM rule extraction (Workstream B)."
+            ),
+            table_properties=gold_props,
+            cluster_by_auto=True,
+            temporary=False,
+        )
+        def segment_chunks():
+            from pyspark.sql.functions import (
+                collect_list,
+                concat_ws,
+                explode,
+                struct,
+            )
+
+            # Reconstruct full document from search chunks
+            full_docs = (
+                self.spark.readStream
+                .table(source_table)
+                .groupBy("doc_source_id")
+                .agg(
+                    concat_ws(
+                        "\n",
+                        collect_list(
+                            struct(col("chunk_position"), col("chunk_to_retrieve"))
+                        ).getField("chunk_to_retrieve")
+                    ).alias("full_html")
+                )
+            )
+
+            # Apply segment chunking UDF and explode
+            return (
+                full_docs
+                .withColumn("chunks", segment_chunk_udf(col("full_html"), col("doc_source_id")))
+                .select(explode(col("chunks")).alias("chunk"))
+                .select(
+                    col("chunk.chunk_id"),
+                    col("chunk.doc_source_id"),
+                    col("chunk.segment_code"),
+                    col("chunk.segment_name"),
+                    col("chunk.segment_am_code"),
+                    col("chunk.transaction_type"),
+                    col("chunk.chunk_position"),
+                    col("chunk.chunk_text"),
+                    col("chunk.chunk_to_embed"),
+                    col("chunk.char_count"),
+                    col("chunk.has_field_table"),
+                    col("chunk.has_segment_questions"),
+                )
             )
