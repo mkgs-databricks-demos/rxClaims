@@ -50,21 +50,34 @@ rules, segment definitions, and field requirements.
 
 ## Querying the Index
 
+**Always use `query_type="HYBRID"`** — NCPDP content contains structured field
+codes (101-A1, AM07, B1) where BM25 keyword matching dramatically outperforms
+pure semantic search. Tested improvement: 0.56–0.62 (ANN) → 0.97–1.00 (HYBRID).
+
 ```python
 from databricks.sdk import WorkspaceClient
 
 w = WorkspaceClient()
 
 results = w.vector_search_indexes.query_index(
-    index_name="ncpdp_dev.rx_claims.specification_search_chunks_index",
-    columns=["path", "text", "error_status"],
+    index_name="ncpdp_dev.dev_matthew_giglia_rx_claims.specification_search_chunks_index",
+    columns=["chunk_id", "chunk_position", "path", "chunk_to_retrieve"],
     query_text="What segments are mandatory in a B1 Claim Billing transaction?",
+    query_type="HYBRID",
     num_results=5
 )
 
 for doc in results.result.data_array:
-    print(f"Score: {doc[-1]:.3f} | {doc[1][:120]}...")
+    score = doc[-1]
+    print(f"Score: {score:.3f} | {doc[3][:120]}...")
 ```
+
+### Search Modes
+
+| Mode | Best For | Typical Score |
+| --- | --- | --- |
+| `HYBRID` (recommended) | Queries with NCPDP field codes, segment IDs, or mixed natural language + codes | 0.95–1.00 |
+| `ANN` (semantic only) | Pure natural language questions with no specific codes | 0.55–0.65 |
 
 ## Syncing the Index
 
@@ -73,14 +86,14 @@ After new specification documents are processed by the
 
 ```python
 w.vector_search_indexes.sync_index(
-    index_name="ncpdp_dev.rx_claims.specification_search_chunks_index"
+    index_name="ncpdp_dev.dev_matthew_giglia_rx_claims.specification_search_chunks_index"
 )
 ```
 
 Or via CLI:
 
 ```bash
-databricks vector-search-indexes sync-index ncpdp_dev.rx_claims.specification_search_chunks_index
+databricks vector-search-indexes sync-index ncpdp_dev.dev_matthew_giglia_rx_claims.specification_search_chunks_index
 ```
 
 ## Prerequisites
