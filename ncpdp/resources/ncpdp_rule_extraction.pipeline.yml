@@ -1,0 +1,32 @@
+# NCPDP Rule Extraction Pipeline
+# Extracts structured validation rules from specification chunks using ai_query,
+# then deduplicates and enriches into production specification_rules table.
+
+resources:
+  pipelines:
+    ncpdp_rule_extraction:
+      name: ncpdp_rule_extraction
+      libraries:
+        - glob:
+            include: ../src/ncpdp_rule_extraction/transformations/**
+      serverless: true
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.ncpdp_schema.name}
+      root_path: ../src/ncpdp_rule_extraction
+      configuration:
+        catalog_use: ${var.catalog}
+        schema_use: ${resources.schemas.ncpdp_schema.name}
+      edition: ADVANCED
+      channel: PREVIEW
+      event_log:
+        name: event_log_ncpdp_rule_extraction
+        schema: ${var.event_log_schema}
+        catalog: ${var.event_log_catalog}
+      tags:
+        parentProject: ${var.tags_parentProject}
+        project: ${var.tags_project}
+        businessUnit: ${var.tags_businessUnit}
+        requestedBy: ${var.tags_requestedBy}
+        developer: ${var.tags_developer}
+        RemoveAfter: ${var.tags_RemoveAfter}
+        env: ${bundle.target}
