@@ -129,7 +129,7 @@ BM25 keyword matching on field codes (101-A1, AM07, B1) raises scores from 0.56�
 
 ### Known Issues
 
-1. **segments.py syntax bug** — Line 8: `segments_yaml_path = '../../../fixtures/config/segments/"'` — mismatched quotes
+1. ~~segments.py syntax bug~~ — FIXED (2026-08-03, branch `mg-genie-fix-segments-syntax`). Note: `ncpdp_segments_etl` pipeline remains a stub; its architecture will be revisited post-Workstream D based on rule extraction learnings
 2. ~~specification_further_processing/temporary_views.py~~ — DELETED (legacy pipeline removed 2026-08-02)
 3. **Segments.review_segments() stub** — Currently just streams all requests to output; YAML rules not applied
 4. **test_pipeline_wiring.py** — Tier 1 tests need the pipeline's source volume populated (run job with `run_spec_process=true` first)
