@@ -25,7 +25,10 @@ resources:
         source_table: ${var.catalog}.${var.schema}.specification_search_chunks
         pipeline_type: ${var.pipeline_type}
         embedding_source_columns:
-          - name: text
+          - name: chunk_to_embed
             embedding_model_endpoint_name: ${var.embedding_model}
         columns_to_sync:
-          - error_status
+          - doc_source_id
+          - chunk_id
+          - chunk_position
+          - chunk_to_retrieve

@@ -112,7 +112,7 @@ targets:
       host: https://fevm-hls-fde.cloud.databricks.com
     variables:
       catalog: ncpdp_dev
-      schema: rx_claims
+      schema: dev_matthew_giglia_rx_claims
 
   # ── e2_demo_fe ──────────────────────────────────────────────────────────
   e2_demo_fe:
