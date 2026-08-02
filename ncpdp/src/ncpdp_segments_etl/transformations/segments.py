@@ -5,7 +5,7 @@ import glob
 file_types = spark.conf.get("file_types").split(',')
 file_types = [file_type.strip() for file_type in file_types]
 
-segments_yaml_path = '../../../fixtures/config/segments/"
+segments_yaml_path = '../../../fixtures/config/segments/'
 yml_files = glob.glob(f"{segments_yaml_path}*.yml")
 
 segment_rules = []
