@@ -108,8 +108,8 @@ incremental processing when new spec documents are added later.
 | Task | Workstream | Output | Status |
 | --- | --- | --- | --- |
 | NCPDP WS-A Re-Chunking | Segment-aware re-chunking in doc intelligence pipeline | `specification_chunks_by_segment` | **COMPLETE** (602 rows, 25 segments) |
-| NCPDP WS-BC Rule Extraction | New `ncpdp_rule_extraction` pipeline (extraction + post-processing) | `specification_rules` | NOT_STARTED |
-| NCPDP WS-D Silver Codegen | Rule-driven `ncpdp_segments_etl` implementation | `claimbilling_silver_{segment}` | NOT_STARTED |
+| NCPDP WS-BC Rule Extraction | New `ncpdp_rule_extraction` pipeline (extraction + post-processing) | `specification_rules` | **COMPLETE** (1,153 rules) |
+| NCPDP WS-D Silver Codegen | Rule-driven `ncpdp_segments_etl` implementation | `claimbilling_silver_{segment}` | **COMPLETE** (8 tables, 29 expectations) |
 
 **Prompt files:** `fixtures/architecture/scheduled-tasks/`
 **Handoff protocol:** `fixtures/handoffs/` (see README there)
@@ -150,10 +150,12 @@ incremental processing when new spec documents are added later.
 
 ### Known Issues
 
-1. ~~segments.py syntax bug~~ — FIXED (2026-08-03, branch `mg-genie-fix-segments-syntax`). Note: `ncpdp_segments_etl` pipeline remains a stub; its architecture will be revisited post-Workstream D based on rule extraction learnings
+1. ~~segments.py syntax bug~~ — FIXED (2026-08-03, branch `mg-genie-fix-segments-syntax`)
 2. ~~specification_further_processing/temporary_views.py~~ — DELETED (legacy pipeline removed 2026-08-02)
-3. **Segments.review_segments() stub** — Currently just streams all requests to output; YAML rules not applied
+3. ~~Segments.review_segments() stub~~ — REPLACED (2026-08-02, WS-D: full metadata-driven implementation via SegmentBuilder)
 4. **test_pipeline_wiring.py** — Tier 1 tests need the pipeline's source volume populated (run job with `run_spec_process=true` first)
+5. **Column comments in SDP** — ALTER TABLE ALTER COLUMN COMMENT not supported in SDP spark.sql(). Comments logged to `claimbilling_silver_column_comments_log`; need post-pipeline SQL task for actual application.
+6. **Segments not yet exploded in bronze** — 9 segments (02,05,06,08,09,10,13,15,16) only have VARIANT rows in bronze_requests. Silver pipeline will auto-expand when bronze ETL explodes these segments into key-value format.
 
 ### Test Status
 
