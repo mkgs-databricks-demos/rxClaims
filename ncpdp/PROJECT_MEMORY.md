@@ -38,6 +38,7 @@ Replaces both the old `ncpdp_specification_document_parsing` pipeline AND the `s
 - `classify_documents()` — ai_classify → `specification_documents_classified`
 - `extract_fields()` — ai_extract → `specification_documents_extracted`
 - `prep_search()` — two-stage explode/chunking → `specification_search_chunks`
+- `chunk_by_segment()` — segment-aware re-chunking → `specification_chunks_by_segment`
 
 Source: `src/ncpdp_document_intelligence/`
 
@@ -72,6 +73,7 @@ Null `key` values in requests (68/168) and responses (44/101) are by design — 
 | `specification_documents_classified` | 1 | Label: `payer_sheet`, no errors, API v2.0 |
 | `specification_documents_extracted` | 1 | Title: "NCPDP Payer Sheet Template", Version: "18" |
 | `specification_search_chunks` | 178 | Avg 4,947 chars, range 1,153–8,607, zero empty |
+| `specification_chunks_by_segment` | 602 | Segment-aware, avg 749 chars, range 31–1,500, 25 segment codes |
 
 Zero AI errors across all stages. `doc_source_id` consistent 1:1 across all 4 downstream tables.
 
@@ -103,11 +105,11 @@ coordinated via `fixtures/handoffs/` status file protocol (polling every 15 min)
 (`ncpdp_rule_extraction`) rather than standalone notebooks. This enables CDF-driven
 incremental processing when new spec documents are added later.
 
-| Task | Workstream | Output |
-| --- | --- | --- |
-| NCPDP WS-A Re-Chunking | Segment-aware re-chunking in doc intelligence pipeline | `specification_chunks_by_segment` |
-| NCPDP WS-BC Rule Extraction | New `ncpdp_rule_extraction` pipeline (extraction + post-processing) | `specification_rules` |
-| NCPDP WS-D Silver Codegen | Rule-driven `ncpdp_segments_etl` implementation | `claimbilling_silver_{segment}` |
+| Task | Workstream | Output | Status |
+| --- | --- | --- | --- |
+| NCPDP WS-A Re-Chunking | Segment-aware re-chunking in doc intelligence pipeline | `specification_chunks_by_segment` | **COMPLETE** (602 rows, 25 segments) |
+| NCPDP WS-BC Rule Extraction | New `ncpdp_rule_extraction` pipeline (extraction + post-processing) | `specification_rules` | NOT_STARTED |
+| NCPDP WS-D Silver Codegen | Rule-driven `ncpdp_segments_etl` implementation | `claimbilling_silver_{segment}` | NOT_STARTED |
 
 **Prompt files:** `fixtures/architecture/scheduled-tasks/`
 **Handoff protocol:** `fixtures/handoffs/` (see README there)
