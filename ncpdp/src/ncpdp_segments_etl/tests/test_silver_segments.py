@@ -1,17 +1,20 @@
 """
-SDP-native tests for silver segment tables.
+Silver segment table tests - Direct SQL execution approach.
+
+Tests SegmentBuilder SQL generation and execution directly via test_spark,
+bypassing test_pipeline.run() which has known limitations with spark.sql()
+embedded FQ table references in the Beta SDP testing framework.
 
 Validates:
-- Pivot logic: key-value rows → typed columnar output
+- SQL generation: SegmentBuilder produces correct pivot SQL
+- Pivot logic: key-value rows -> typed columnar output
 - Data type casting: STRING, INT, DECIMAL(10,3), DATE
-- MANDATORY expectations: NOT NULL checks fire on missing fields
-- ALLOWED_VALUES expectations: IN checks fire on invalid values
-- FORMAT expectations: RLIKE checks fire on non-matching patterns
-- Schema correctness: output columns match specification_rules
+- Expectations: constraint generation for MANDATORY, ALLOWED_VALUES, FORMAT
 """
 import pytest
-from pyspark.pipelines.testing import TestPipeline, test_spark  # noqa: F401
-from conftest import test_pipeline, fqn
+from pyspark.pipelines.testing import test_spark  # noqa: F401
+from conftest import CATALOG, SCHEMA, fqn
+from utilities.utils import SegmentBuilder
 from decimal import Decimal
 from datetime import date
 
