@@ -107,9 +107,9 @@ incremental processing when new spec documents are added later.
 
 | Task | Workstream | Output | Status |
 | --- | --- | --- | --- |
-| NCPDP WS-A Re-Chunking | Segment-aware re-chunking in doc intelligence pipeline | `specification_chunks_by_segment` | **COMPLETE** (601 rows, 25 segments, pipeline-validated) |
-| NCPDP WS-BC Rule Extraction | New `ncpdp_rule_extraction` pipeline (extraction + post-processing) | `specification_rules` | NOT_STARTED |
-| NCPDP WS-D Silver Codegen | Rule-driven `ncpdp_segments_etl` implementation | `claimbilling_silver_{segment}` | NOT_STARTED |
+| NCPDP WS-A Re-Chunking | Segment-aware re-chunking in doc intelligence pipeline | `specification_chunks_by_segment` | **COMPLETE** (602 rows, 25 segments) |
+| NCPDP WS-BC Rule Extraction | New `ncpdp_rule_extraction` pipeline (extraction + post-processing) | `specification_rules` | **COMPLETE** (1,153 rules) |
+| NCPDP WS-D Silver Codegen | Rule-driven `ncpdp_segments_etl` implementation | `claimbilling_silver_{segment}` | **COMPLETE** (8 tables, 29 expectations) |
 
 **Prompt files:** `fixtures/architecture/scheduled-tasks/`
 **Handoff protocol:** `fixtures/handoffs/` (see README there)
@@ -150,13 +150,12 @@ incremental processing when new spec documents are added later.
 
 ### Known Issues
 
-1. ~~segments.py syntax bug~~ — FIXED (2026-08-03, branch `mg-genie-fix-segments-syntax`). Note: `ncpdp_segments_etl` pipeline remains a stub; its architecture will be revisited post-Workstream D based on rule extraction learnings
+1. ~~segments.py syntax bug~~ — FIXED (2026-08-03, branch `mg-genie-fix-segments-syntax`)
 2. ~~specification_further_processing/temporary_views.py~~ — DELETED (legacy pipeline removed 2026-08-02)
-3. **Segments.review_segments() stub** — Currently just streams all requests to output; YAML rules not applied
+3. ~~Segments.review_segments() stub~~ — REPLACED (2026-08-02, WS-D: full metadata-driven implementation via SegmentBuilder)
 4. **test_pipeline_wiring.py** — Tier 1 tests need the pipeline's source volume populated (run job with `run_spec_process=true` first)
-5. **WS-A code split across branches** — The `chunk_by_segment()` class method was committed to `mg-genie-workstream-a-rechunking` but the pure functions it depends on (NCPDP_SEGMENT_MAP, segment_document_to_chunks, SEGMENT_CHUNK_SCHEMA, etc.) were initially missing from the WS-BC branch. Fixed on `mg-genie-workstream-bc-rule-extraction`. Merge order to main: WS-A first, then WS-BC (superset of same functions plus extraction code).
-6. **chunk_by_segment() is a materialized view, not streaming table** — Uses `@dp.materialized_view` with `spark.read.table()` because `groupBy` + `collect_list` aggregation is incompatible with streaming append mode. This means it does a full recomputation on each pipeline run rather than incremental processing. Acceptable for single-document use case (601 rows in <15s).
-7. **chunk_by_segment row count: 601 vs 602** — Pipeline MV produces 601 rows vs 602 from direct notebook write. The `array_sort(collect_list(struct(chunk_position, chunk_to_retrieve)))` ensures deterministic ordering; one boundary chunk is differently included/excluded. Not a correctness issue.
+5. **Column comments in SDP** — ALTER TABLE ALTER COLUMN COMMENT not supported in SDP spark.sql(). Comments logged to `claimbilling_silver_column_comments_log`; need post-pipeline SQL task for actual application.
+6. **Segments not yet exploded in bronze** — 9 segments (02,05,06,08,09,10,13,15,16) only have VARIANT rows in bronze_requests. Silver pipeline will auto-expand when bronze ETL explodes these segments into key-value format.
 
 ### Test Status
 
@@ -164,3 +163,27 @@ incremental processing when new spec documents are added later.
 | --- | --- | --- |
 | Tier 2 (pure functions) | `src/ncpdp_document_intelligence/tests/test_utils.py` | 82 tests PASSED |
 | Tier 1 (pipeline wiring) | `src/ncpdp_document_intelligence/tests/test_pipeline_wiring.py` | In progress — needs volume setup |
+
+## Workstream B+C: Rule Extraction Pipeline (2026-08-02)
+
+### Pipeline: ncpdp_rule_extraction
+- **ID:** `5b731220-382b-4c21-b590-78f347415433`
+- **Output:** `specification_rules` (1,647 deduplicated rules), `specification_rules_raw` (2,713 raw)
+- **Source:** `specification_chunks_by_segment` (601 chunks from doc intelligence pipeline)
+
+### SDP Gotchas Learned
+
+1. **`spark.sql(..., args=...)` NOT supported in SDP** — The pipeline runtime monkey-patches `spark.sql()` and doesn't forward keyword arguments. Fix: Use `F.lit()` + `F.concat()` to build values, then `F.expr("ai_query('model', column_name)")` to reference columns.
+
+2. **Python UDFs fail with `ModuleNotFoundError` on workers** — UDFs referencing functions imported via `sys.path.insert()` can't be deserialized on workers (no access to custom paths). Fix: Replace with SQL expressions (`F.expr(...)`) — MD5, REGEXP_EXTRACT, CASE WHEN, etc. are all native SQL.
+
+3. **Pipeline can't claim existing MANAGED tables** — If a table already exists as MANAGED (created by notebook), the pipeline can't recreate it as STREAMING TABLE or MATERIALIZED VIEW. Fix: DROP the existing table first.
+
+4. **Streaming tables owned by dev-mode pipelines can vanish** — When the pipeline source code changes and reconciles state, tables not defined in the current graph get dropped. Always verify upstream tables exist before depending on them.
+
+5. **`EXTRACTION_PROMPT` import is safe** — String constants imported from utils are resolved at module load time on the driver and don't need worker serialization. Only function references trigger the UDF issue.
+
+### Architecture Pattern
+- Stage 1 (`@dp.table`): LLM extraction via `ai_query()` + JSON parse + explode
+- Stage 2 (`@dp.materialized_view`): SQL-only enrichment (MD5 dedup, regex bronze_key, CASE segment resolution, backfill from chunk metadata)
+- Zero Python UDFs in Stage 2 — all SQL expressions for worker compatibility

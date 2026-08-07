@@ -1,0 +1,51 @@
+# Delta Sync Vector Search Index for NCPDP Specification Rules
+#
+# Reads from the `specification_rules` table produced by the
+# ncpdp_rule_extraction pipeline in the companion `ncpdp` bundle.
+# Uses managed embeddings (databricks-gte-large-en, 1024 dims) to
+# vectorize the `rule_text` column for semantic rule retrieval.
+#
+# This is VS Index #2 in the architecture — enables filtered HYBRID
+# retrieval of validation rules by segment_code, rule_level, rule_type,
+# and field_code. Used by Workstream D (silver-layer codegen) and
+# Genie Code sessions for context-aware rule lookup.
+#
+# Pipeline type: TRIGGERED — sync after rule extraction pipeline completes.
+#
+# Prerequisites (managed by the ncpdp bundle):
+#   - Source table has CDF enabled (delta.enableChangeDataFeed = true)
+#   - Source table `specification_rules_for_index` is a regular Delta table
+#     populated from the pipeline's specification_rules MV
+#   - Refresh pattern: after pipeline run, MERGE INTO from MV to keep in sync
+#   - The deploying principal has USE CATALOG + USE SCHEMA + CREATE TABLE
+#   - The principal has CAN_USE on the VS endpoint
+
+resources:
+  vector_search_indexes:
+    ncpdp_rules_index:
+      name: ${var.catalog}.${var.schema}.specification_rules_${var.vs_index_suffix}
+      endpoint_name: ${resources.vector_search_endpoints.ncpdp_specifications_endpoint.name}
+      primary_key: rule_id
+      index_type: DELTA_SYNC
+      delta_sync_index_spec:
+        source_table: ${var.catalog}.${var.schema}.specification_rules_for_index
+        pipeline_type: ${var.pipeline_type}
+        embedding_source_columns:
+          - name: rule_text
+            embedding_model_endpoint_name: ${var.embedding_model}
+        columns_to_sync:
+          - rule_level
+          - rule_type
+          - segment_code
+          - segment_name
+          - field_code
+          - field_name
+          - bronze_key
+          - transaction_types
+          - condition
+          - condition_segment
+          - allowed_values
+          - format_pattern
+          - column_name
+          - data_type
+          - payer_usage
