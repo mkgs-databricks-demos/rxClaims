@@ -42,14 +42,21 @@ test_pipeline = TestPipeline.active()
 MINIMAL_PDF_TEXT = "NCPDP Telecommunication Standard Implementation Guide Version D.0 Segment AM01 Patient Request"
 
 
-# Pipeline's configuration values — must match the pipeline YAML.
-# TestPipeline does NOT automatically propagate pipeline 'configuration' vars
-# to the Spark session, so we set them explicitly via fixture.
-_PIPELINE_CATALOG = "ncpdp_dev"
-_PIPELINE_SCHEMA = "dev_matthew_giglia_rx_claims"
-_PIPELINE_VOLUME = "spec_documents"
-_PIPELINE_VOLUME_SUB_PATH = "raw"
-_PIPELINE_IMAGE_OUTPUT_SUB_PATH = "parsed_image_output"
+# Pipeline configuration keys — match the pipeline YAML's `configuration` block.
+# At runtime, values resolve from:
+#   1. Pipeline-propagated Spark conf (if TestPipeline starts passing them through)
+#   2. current_catalog() / current_database() for catalog/schema
+#   3. Bundle variable defaults for volume paths
+#
+# This removes hardcoded catalog/schema values so the tests work across all
+# bundle targets (dev, e2_demo_fe, free_edition) without manual edits.
+_CONFIG_DEFAULTS = {
+    "catalog_use": None,       # Resolved from current_catalog() if not propagated
+    "schema_use": None,        # Resolved from current_database() if not propagated
+    "volume_use": "spec_documents",
+    "volume_sub_path_use": "raw",
+    "image_output_sub_path_use": "parsed_image_output",
+}
 
 
 @pytest.fixture(autouse=True)
@@ -58,21 +65,41 @@ def set_pipeline_configs(test_spark):
 
     The TestPipeline framework does not automatically propagate the pipeline's
     'configuration' map to the Spark session used during test execution.
+
+    Resolution order per key:
+      1. Already set in Spark conf (pipeline runtime propagated it) → keep as-is
+      2. Fallback: current_catalog()/current_database() for catalog/schema,
+         or bundle variable defaults for volume paths.
     """
-    test_spark.conf.set("catalog_use", _PIPELINE_CATALOG)
-    test_spark.conf.set("schema_use", _PIPELINE_SCHEMA)
-    test_spark.conf.set("volume_use", _PIPELINE_VOLUME)
-    test_spark.conf.set("volume_sub_path_use", _PIPELINE_VOLUME_SUB_PATH)
-    test_spark.conf.set("image_output_sub_path_use", _PIPELINE_IMAGE_OUTPUT_SUB_PATH)
+    for key, default in _CONFIG_DEFAULTS.items():
+        try:
+            test_spark.conf.get(key)
+            # Already propagated by the pipeline runtime — leave it alone.
+            continue
+        except Exception:
+            pass
+
+        if key == "catalog_use":
+            value = test_spark.sql("SELECT current_catalog()").collect()[0][0]
+        elif key == "schema_use":
+            value = test_spark.sql("SELECT current_database()").collect()[0][0]
+        else:
+            value = default
+        test_spark.conf.set(key, value)
 
 
 def _fqn(table_suffix: str) -> str:
     """Fully qualified table name matching the pipeline's published datasets.
 
-    Per Databricks docs, TestPipeline isolation is by table name (FQN).
-    Mock creation, test_pipeline.run(), and result reads all use the same FQN.
+    Reads catalog and schema dynamically from Spark conf (set by the pipeline
+    runtime or the set_pipeline_configs fixture). This ensures the test works
+    across all bundle targets without hardcoded values.
     """
-    return f"{_PIPELINE_CATALOG}.{_PIPELINE_SCHEMA}.{table_suffix}"
+    from pyspark.sql import SparkSession
+    s = SparkSession.getActiveSession()
+    catalog = s.conf.get("catalog_use")
+    schema = s.conf.get("schema_use")
+    return f"{catalog}.{schema}.{table_suffix}"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Mock Setup Functions
