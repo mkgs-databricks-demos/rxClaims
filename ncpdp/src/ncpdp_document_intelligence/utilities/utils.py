@@ -398,6 +398,285 @@ def build_prep_search_explode_expr() -> tuple[list, list]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Segment-Aware Re-Chunking Functions
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# NCPDP D.0 segment code to name mapping
+NCPDP_SEGMENT_MAP = {
+    "HD": "Transaction Header",
+    "01": "Patient",
+    "02": "Pharmacy Provider",
+    "03": "Prescriber",
+    "04": "Insurance",
+    "05": "Coordination of Benefits/Other Payments",
+    "06": "Workers' Compensation",
+    "07": "Claim",
+    "08": "DUR/PPS",
+    "09": "Coupon",
+    "10": "Compound",
+    "11": "Pricing",
+    "13": "Clinical",
+    "14": "Additional Documentation",
+    "15": "Facility",
+    "16": "Narrative",
+    "20": "Response Message",
+    "21": "Response Status",
+    "22": "Response Claim",
+    "23": "Response Pricing",
+    "24": "Response DUR/PPS",
+    "25": "Response Insurance",
+    "26": "Response Prior Authorization",
+    "28": "Response Coordination of Benefits/Other Payers",
+    "29": "Response Patient",
+}
+
+_NCPDP_NAME_TO_CODE = {v.lower(): k for k, v in NCPDP_SEGMENT_MAP.items()}
+_NCPDP_NAME_TO_CODE["response transaction header"] = "HD"
+
+CHUNK_MAX_SIZE = 1500
+CHUNK_TARGET_SIZE = 1000
+
+_RE_FIELD_TABLE_WITH_AM = re.compile(
+    r'<t[hd]>Field #</t[hd]><t[hd]>([^<]*?)Segment[^<]*?'
+    r'Identification\s*\(111-AM\)\s*=\s*"(\d+)"</t[hd]>'
+)
+_RE_TX_HEADER_TABLE = re.compile(
+    r'<t[hd]>Field #</t[hd]><t[hd]>Transaction Header Segment</t[hd]>'
+)
+_RE_SEGMENT_QUESTIONS = re.compile(
+    r'<table><tr><th>([^<]+?)Segment Questions</th><th>Check</th><th>([^<]*)</th>'
+)
+_RE_TX_TYPE_IN_HEADER = re.compile(
+    r'<th>([^<]*(?:Claim Billing|Claim Reversal|Service|Eligibility|Predetermination)[^<]*)</th>'
+)
+
+
+def resolve_segment_code(segment_name: str) -> str:
+    """Resolve a segment display name to its NCPDP AM code."""
+    name_lower = segment_name.lower().strip()
+    if name_lower in _NCPDP_NAME_TO_CODE:
+        return _NCPDP_NAME_TO_CODE[name_lower]
+    for key, code in _NCPDP_NAME_TO_CODE.items():
+        if key in name_lower or name_lower in key:
+            return code
+    return "XX"
+
+
+def detect_transaction_type(header_text: str) -> str:
+    """Determine NCPDP transaction type from column header text."""
+    t = header_text.lower()
+    if "claim reversal" in t:
+        return "B2"
+    elif "service billing" in t or "service rebill" in t:
+        return "S1"
+    elif "eligibility" in t:
+        return "E1"
+    elif "predetermination" in t:
+        return "D1"
+    return "B1_B3"
+
+
+def strip_html_to_text(html: str) -> str:
+    """Convert HTML content to clean structured text.
+
+    Field rows: 'Field {code} | {name} | Payer Usage: {usage}'
+    Other rows: pipe-separated values. All tags removed.
+    """
+    result_lines = []
+    rows = re.findall(r'<tr>(.*?)</tr>', html, re.DOTALL)
+
+    text_outside = re.sub(r'<tr>.*?</tr>', '\n', html, flags=re.DOTALL)
+    text_outside = re.sub(r'<table>|</table>', '', text_outside)
+    text_outside = re.sub(r'<[^>]+>', '', text_outside)
+    for line in text_outside.split('\n'):
+        line = line.strip()
+        if line and len(line) > 3:
+            result_lines.append(line)
+
+    for row_html in rows:
+        cells = re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', row_html, re.DOTALL)
+        clean_cells = []
+        for cell in cells:
+            cell_text = re.sub(r'<br\s*/?>', ' ', cell)
+            cell_text = re.sub(r'<i>([^<]*)</i>', r'\1', cell_text)
+            cell_text = re.sub(r'<[^>]+>', '', cell_text)
+            cell_text = re.sub(r'\s+', ' ', cell_text).strip()
+            clean_cells.append(cell_text)
+
+        if not any(c for c in clean_cells):
+            continue
+        first = clean_cells[0] if clean_cells else ""
+        if first == "Field #" or first == "NCPDP Field Name":
+            continue
+        if first == "" and len(clean_cells) > 1 and clean_cells[1] == "NCPDP Field Name":
+            continue
+
+        if len(clean_cells) >= 2 and re.match(r'\d{3}-[A-Z]\w*', first):
+            field_code = clean_cells[0]
+            field_name = clean_cells[1]
+            value = clean_cells[2] if len(clean_cells) > 2 else ""
+            usage = clean_cells[3] if len(clean_cells) > 3 else ""
+            situation = clean_cells[4] if len(clean_cells) > 4 else ""
+            line = f"Field {field_code} | {field_name}"
+            if usage:
+                line += f" | Payer Usage: {usage}"
+            if value:
+                line += f" | Value: {value}"
+            if situation and len(situation) > 2:
+                line += f" | {situation}"
+            result_lines.append(line)
+        else:
+            joined = " | ".join(c for c in clean_cells if c)
+            if joined:
+                result_lines.append(joined)
+
+    return "\n".join(result_lines)
+
+
+def sub_chunk_text(text: str, max_size: int = CHUNK_MAX_SIZE, target_size: int = CHUNK_TARGET_SIZE) -> list:
+    """Split text into sub-chunks at line/sentence boundaries."""
+    if len(text) <= max_size:
+        return [text]
+
+    lines = text.split('\n')
+    expanded_lines = []
+    for line in lines:
+        if len(line) > max_size:
+            sentences = re.split(r'(?<=[.!?])\s+', line)
+            expanded_lines.extend(s for s in sentences if s.strip())
+        else:
+            expanded_lines.append(line)
+
+    chunks = []
+    current_chunk = []
+    current_len = 0
+    for line in expanded_lines:
+        line_len = len(line) + 1
+        if current_len + line_len > target_size and current_chunk:
+            chunks.append('\n'.join(current_chunk))
+            current_chunk = [line]
+            current_len = line_len
+        else:
+            current_chunk.append(line)
+            current_len += line_len
+    if current_chunk:
+        chunks.append('\n'.join(current_chunk))
+
+    final_chunks = []
+    for chunk in chunks:
+        if len(chunk) <= max_size:
+            final_chunks.append(chunk)
+        else:
+            for i in range(0, len(chunk), max_size):
+                final_chunks.append(chunk[i:i + max_size])
+    return final_chunks
+
+
+def generate_chunk_id(doc_source_id: str, segment_code: str, chunk_position: int) -> str:
+    """Generate a deterministic chunk ID (16-char hex)."""
+    key = f"{doc_source_id}|{segment_code}|{chunk_position}"
+    return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+
+def segment_document_to_chunks(full_html: str, doc_source_id: str) -> list:
+    """Split a full NCPDP Payer Sheet HTML into segment-aware chunks."""
+    boundaries = []
+
+    for m in _RE_FIELD_TABLE_WITH_AM.finditer(full_html):
+        boundaries.append({
+            'pos': m.start(),
+            'segment_name': m.group(1).strip(),
+            'segment_code': m.group(2),
+            'type': 'field_table',
+        })
+    for m in _RE_TX_HEADER_TABLE.finditer(full_html):
+        boundaries.append({
+            'pos': m.start(),
+            'segment_name': 'Transaction Header',
+            'segment_code': 'HD',
+            'type': 'field_table',
+        })
+    for m in _RE_SEGMENT_QUESTIONS.finditer(full_html):
+        seg_name = m.group(1).strip()
+        code = resolve_segment_code(seg_name)
+        boundaries.append({
+            'pos': m.start(),
+            'segment_name': seg_name,
+            'segment_code': code,
+            'type': 'segment_questions',
+            'tx_context': m.group(2).strip(),
+        })
+
+    boundaries.sort(key=lambda x: x['pos'])
+    if not boundaries:
+        return []
+
+    chunks = []
+    for i, boundary in enumerate(boundaries):
+        end_pos = boundaries[i + 1]['pos'] if i + 1 < len(boundaries) else len(full_html)
+        section_html = full_html[boundary['pos']:end_pos]
+
+        if 'tx_context' in boundary:
+            tx_type = detect_transaction_type(boundary['tx_context'])
+        else:
+            tx_matches = _RE_TX_TYPE_IN_HEADER.findall(section_html)
+            if tx_matches:
+                tx_type = detect_transaction_type(tx_matches[0])
+            else:
+                preceding = full_html[max(0, boundary['pos'] - 5000):boundary['pos']]
+                tx_prev = _RE_TX_TYPE_IN_HEADER.findall(preceding)
+                tx_type = detect_transaction_type(tx_prev[-1]) if tx_prev else "B1_B3"
+
+        clean_text = strip_html_to_text(section_html)
+        if len(clean_text.strip()) < 20:
+            continue
+
+        seg_code = boundary['segment_code']
+        seg_name = boundary['segment_name']
+        am_code = f"AM{seg_code.zfill(2)}" if seg_code not in ("HD", "XX") else seg_code
+        has_field_table = boundary['type'] == 'field_table'
+        has_seg_questions = boundary['type'] == 'segment_questions'
+
+        for chunk_text in sub_chunk_text(clean_text):
+            pos_idx = len(chunks)
+            chunk_id = generate_chunk_id(doc_source_id, seg_code, pos_idx)
+            context_header = f"NCPDP D.0 | {seg_name} ({seg_code}) | {tx_type}:"
+            chunk_to_embed = f"{context_header}\n{chunk_text}"
+            chunks.append({
+                'chunk_id': chunk_id,
+                'doc_source_id': doc_source_id,
+                'segment_code': seg_code,
+                'segment_name': seg_name,
+                'segment_am_code': am_code,
+                'transaction_type': tx_type,
+                'chunk_position': pos_idx,
+                'chunk_text': chunk_text,
+                'chunk_to_embed': chunk_to_embed,
+                'char_count': len(chunk_text),
+                'has_field_table': has_field_table,
+                'has_segment_questions': has_seg_questions,
+            })
+    return chunks
+
+
+# Schema for the segment chunks UDF output
+SEGMENT_CHUNK_SCHEMA = ArrayType(StructType([
+    StructField("chunk_id", StringType(), False),
+    StructField("doc_source_id", StringType(), False),
+    StructField("segment_code", StringType(), False),
+    StructField("segment_name", StringType(), False),
+    StructField("segment_am_code", StringType(), False),
+    StructField("transaction_type", StringType(), False),
+    StructField("chunk_position", IntegerType(), False),
+    StructField("chunk_text", StringType(), False),
+    StructField("chunk_to_embed", StringType(), False),
+    StructField("char_count", IntegerType(), True),
+    StructField("has_field_table", BooleanType(), True),
+    StructField("has_segment_questions", BooleanType(), True),
+]))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Pipeline Orchestration Class
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -635,10 +914,13 @@ class DocumentIntelligence:
     def chunk_by_segment(self):
         """Produce segment-aware chunks optimized for rule extraction.
 
-        Reads the search chunks produced by prep_search(), concatenates them
-        back into the full document per doc_source_id, splits by NCPDP
-        segment boundaries, strips HTML, and writes metadata-enriched chunks
-        suitable for LLM-based rule extraction.
+        Reads the search chunks produced by prep_search(), reconstructs the
+        full document per doc_source_id, splits by NCPDP segment boundaries,
+        strips HTML, and writes metadata-enriched chunks suitable for
+        LLM-based rule extraction.
+
+        Uses a materialized view (batch read) because the reconstruction
+        requires groupBy aggregation which is incompatible with streaming.
 
         Output table: specification_chunks_by_segment
         """
@@ -655,7 +937,7 @@ class DocumentIntelligence:
                 return []
             return segment_document_to_chunks(full_html, doc_source_id)
 
-        @dp.table(
+        @dp.materialized_view(
             name=table_name,
             comment=(
                 "Segment-aware chunks from NCPDP specification documents. "
@@ -665,27 +947,33 @@ class DocumentIntelligence:
             ),
             table_properties=gold_props,
             cluster_by_auto=True,
-            temporary=False,
         )
         def segment_chunks():
             from pyspark.sql.functions import (
+                array_sort,
                 collect_list,
                 concat_ws,
                 explode,
                 struct,
+                transform,
             )
 
-            # Reconstruct full document from search chunks
+            # Reconstruct full document from search chunks (ordered by position)
             full_docs = (
-                self.spark.readStream
+                self.spark.read
                 .table(source_table)
                 .groupBy("doc_source_id")
                 .agg(
                     concat_ws(
                         "\n",
-                        collect_list(
-                            struct(col("chunk_position"), col("chunk_to_retrieve"))
-                        ).getField("chunk_to_retrieve")
+                        transform(
+                            array_sort(
+                                collect_list(
+                                    struct(col("chunk_position"), col("chunk_to_retrieve"))
+                                )
+                            ),
+                            lambda x: x.getField("chunk_to_retrieve")
+                        )
                     ).alias("full_html")
                 )
             )
