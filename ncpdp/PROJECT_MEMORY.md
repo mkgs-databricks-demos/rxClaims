@@ -73,7 +73,7 @@ Null `key` values in requests (68/168) and responses (44/101) are by design — 
 | `specification_documents_classified` | 1 | Label: `payer_sheet`, no errors, API v2.0 |
 | `specification_documents_extracted` | 1 | Title: "NCPDP Payer Sheet Template", Version: "18" |
 | `specification_search_chunks` | 178 | Avg 4,947 chars, range 1,153–8,607, zero empty |
-| `specification_chunks_by_segment` | 602 | Segment-aware, avg 749 chars, range 31–1,500, 25 segment codes |
+| `specification_chunks_by_segment` | 601 | Materialized view, avg 750 chars, range 31–1,500, 25 segments, 3 tx types |
 
 Zero AI errors across all stages. `doc_source_id` consistent 1:1 across all 4 downstream tables.
 
