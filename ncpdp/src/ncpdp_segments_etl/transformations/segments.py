@@ -26,16 +26,25 @@ segments = builder.build_all_segments()
 
 
 # ─── Factory function for segment table registration ───────────────────────
-def register_segment_table(table_fqn: str, pivot_sql: str, expectations: Dict[str, str]):
+def register_segment_table(
+    table_fqn: str,
+    pivot_sql: str,
+    expectations: Dict[str, str],
+    schema_ddl: str,
+):
     """
     Register a single silver table with the SDP pipeline.
 
     Called once per segment inside the loop. The function call creates a new
     scope, so the inner closure correctly captures pivot_sql by value.
+
+    The schema_ddl parameter embeds column COMMENT clauses directly in the
+    table definition — the supported way to apply column comments in SDP.
     """
     if expectations:
         @dp.table(
             name=table_fqn,
+            schema=schema_ddl,
             table_properties=SILVER_TABLE_PROPERTIES,
             cluster_by_auto=True,
         )
@@ -45,6 +54,7 @@ def register_segment_table(table_fqn: str, pivot_sql: str, expectations: Dict[st
     else:
         @dp.table(
             name=table_fqn,
+            schema=schema_ddl,
             table_properties=SILVER_TABLE_PROPERTIES,
             cluster_by_auto=True,
         )
@@ -58,5 +68,6 @@ for _seg in segments:
         table_fqn=f"{catalog}.{schema}.{_seg.table_name}",
         pivot_sql=builder.build_pivot_sql(_seg),
         expectations=builder.build_expectations(_seg),
+        schema_ddl=builder.build_schema_ddl(_seg),
     )
 

@@ -253,6 +253,35 @@ class SegmentBuilder:
 
         return expectations
 
+    def build_schema_ddl(self, segment: SegmentDefinition) -> str:
+        """
+        Build a SQL DDL schema string with COMMENT clauses for @dp.table(schema=...).
+
+        This embeds column comments directly in the table definition, which is the
+        supported way to apply column comments in SDP (ALTER TABLE ALTER COLUMN
+        COMMENT is not supported inside pipelines).
+
+        Returns a multi-line DDL string like:
+            transaction_file_source_id STRING COMMENT 'Source file identifier',
+            request_pos INT COMMENT 'Position within transaction',
+            bin_number STRING COMMENT 'BIN Number - 6-digit routing identifier'
+        """
+        lines = [
+            "transaction_file_source_id STRING COMMENT 'Unique identifier for the source transaction file'",
+            "request_pos INT COMMENT 'Position of the request within the transaction file'",
+        ]
+
+        for f in segment.fields:
+            cast_type = _normalize_data_type(f.data_type)
+            col_def = f"`{f.column_name}` {cast_type}"
+            if f.column_comment:
+                # Escape single quotes for SQL DDL
+                safe_comment = f.column_comment.replace("'", "\\'")
+                col_def += f" COMMENT '{safe_comment}'"
+            lines.append(col_def)
+
+        return ",\n".join(lines)
+
     def get_all_expectations_count(self, segments: List[SegmentDefinition]) -> int:
         """Count total expectations across all segments."""
         return sum(len(self.build_expectations(seg)) for seg in segments)

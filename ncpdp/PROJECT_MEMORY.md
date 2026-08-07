@@ -154,7 +154,7 @@ incremental processing when new spec documents are added later.
 2. ~~specification_further_processing/temporary_views.py~~ — DELETED (legacy pipeline removed 2026-08-02)
 3. ~~Segments.review_segments() stub~~ — REPLACED (2026-08-02, WS-D: full metadata-driven implementation via SegmentBuilder)
 4. ~~test_pipeline_wiring.py volume dependency~~ — STALE (2026-08-04). Tests mock source tables via SQL CREATE OR REPLACE; only Layer 1 (Auto Loader) needs the volume, and it is explicitly excluded from TestPipeline tests. Test classes B+C have zero volume dependency. Test A (`TestFullChainWithBinary`) may need `image_output_sub_path` to exist, but dev volume is already populated from the last successful run with `run_spec_process=true`.
-5. **Column comments in SDP** — ALTER TABLE ALTER COLUMN COMMENT not supported in SDP spark.sql(). Comments logged to `claimbilling_silver_column_comments_log`; need post-pipeline SQL task for actual application.
+5. ~~Column comments in SDP~~ — FIXED (2026-08-07). Column comments are now embedded in the `@dp.table(schema=...)` DDL string via `SegmentBuilder.build_schema_ddl()`. This is the supported SDP approach per Databricks docs. `apply_comments.py` (which attempted unsupported ALTER TABLE DDL) has been gutted. `claimbilling_silver_column_comments_log` is no longer produced.
 6. **Segments not yet exploded in bronze** — 9 segments (02,05,06,08,09,10,13,15,16) only have VARIANT rows in bronze_requests. Silver pipeline will auto-expand when bronze ETL explodes these segments into key-value format.
 
 ### Test Status
