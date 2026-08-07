@@ -191,7 +191,77 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.ncpdp_etl.id}
             full_refresh: false
-            
+
+      #################################
+      # Rule Extraction Pipeline Control
+      #################################
+
+        # Conditional Trigger for a Full Refresh Based on the Input Parameter Value
+        - task_key: Trigger_Full_Refresh_Rule_Extraction
+          depends_on:
+            - task_key: Full_Refresh_Document_Intelligence_Pipeline
+            - task_key: Refresh_Document_Intelligence_Pipeline
+            - task_key: Parse_Specification_Documents
+              outcome: "false"
+            - task_key: Is_Development_Mode
+              outcome: "false"
+          run_if: AT_LEAST_ONE_SUCCESS
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.pipeline_full_refresh}}"
+            right: "true"
+
+        # Rule Extraction Pipeline Full Refresh
+        - task_key: Full_Refresh_Rule_Extraction_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh_Rule_Extraction
+              outcome: "true"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_rule_extraction.id}
+            full_refresh: true
+
+        # Rule Extraction Pipeline Incremental Refresh
+        - task_key: Refresh_Rule_Extraction_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh_Rule_Extraction
+              outcome: "false"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_rule_extraction.id}
+            full_refresh: false
+
+      ##############################
+      # Segments ETL Pipeline Control
+      ##############################
+
+        # Conditional Trigger for a Full Refresh Based on the Input Parameter Value
+        - task_key: Trigger_Full_Refresh_Segments_ETL
+          depends_on:
+            - task_key: Full_Refresh_Rule_Extraction_Pipeline
+            - task_key: Refresh_Rule_Extraction_Pipeline
+          run_if: AT_LEAST_ONE_SUCCESS
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.pipeline_full_refresh}}"
+            right: "true"
+
+        # Segments ETL Pipeline Full Refresh
+        - task_key: Full_Refresh_Segments_ETL_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh_Segments_ETL
+              outcome: "true"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_segments_etl.id}
+            full_refresh: true
+
+        # Segments ETL Pipeline Incremental Refresh
+        - task_key: Refresh_Segments_ETL_Pipeline
+          depends_on:
+            - task_key: Trigger_Full_Refresh_Segments_ETL
+              outcome: "false"
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.ncpdp_segments_etl.id}
+            full_refresh: false
+
 
       environments:
         - environment_key: primary
